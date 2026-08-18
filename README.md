@@ -1,5 +1,15 @@
 # Dan SanSouci is a famed children's book author, illustrator, and painter.
 
+## Website Inspiration
+
+1. [Ben J Davies](https://benjidavies.squarespace.com)
+    - I love how books are designed here with little painted shadows.
+    - I love how the print shop has paintings that are in frames.
+2.  [Steven Savaat](https://www.steeven-salvat.com)
+    - The full-screen landing page shows off his work nicely.
+3. [Samantha Keely Smith](https://samanthakeelysmith.com)
+    - Another full-screen landing page.
+    - Extremely simple navigation.
 
 ## Here are some of my thoughts on next steps. I'll send this to him and get his thoughts.
 
