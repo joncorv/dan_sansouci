@@ -5,6 +5,7 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+mod basic_nav;
 
 #[tokio::main]
 async fn main() {
