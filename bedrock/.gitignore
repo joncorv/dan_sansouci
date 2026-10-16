@@ -1,0 +1,13 @@
+# Compiled output
+/target/
+
+# rustfmt backups
+**/*.rs.bk
+
+# MSVC debug info
+*.pdb
+
+# Environment
+.env
+.env.*
+!.env.example

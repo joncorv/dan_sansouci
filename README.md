@@ -1,61 +1,77 @@
-# Dan SanSouci is a famed children's book author, illustrator, and painter.
+<h1 align="center">Big Sky</h1>
 
-## Website Inspiration
+<h3 align="center">The best web framework in the west.</h3>
 
-1. [Ben J Davies](https://benjidavies.squarespace.com)
-    - I love how books are designed here with little painted shadows.
-    - I love how the print shop has paintings that are in frames.
-2.  [Steven Savaat](https://www.steeven-salvat.com)
-    - The full-screen landing page shows off his work nicely.
-3. [Samantha Keely Smith](https://samanthakeelysmith.com)
-    - Another full-screen landing page.
-    - Extremely simple navigation.
+<p align="center">
+  A Nuxt frontend and a Rust API, wired together and working out of the box.
+</p>
 
-## Here are some of my thoughts on next steps. I'll send this to him and get his thoughts.
+<p align="center">
+  <img src="horizon/public/header.png" alt="Big Sky" width="720">
+</p>
 
-- I'm putting together a list of some fun websites to share with you. I'll do a little screencast (aka record a video) of me picking out some interesting ideas and share them with you.
+## What You Get
 
-- I think it would be handy to build this in a way so you could go in and make edits to your bio, add photos, replace photos, and generally make changes to your site in the future so you could independently "do stuff" without having to worry anything will break. The only downside is there may be like a $7/month fee for running the service online.
+Clone it, start two services, and there is a working full-stack app on screen — not a placeholder page.
 
-- So my main over-arching thought about what you were looking for is this:
-    - Large full screen landing page that leans into your most beloved paintings, perhaps cycles though gracefully 4 or 5 in a Ken Burns kind of way.
-    - Then have either some kind of bold navigation (like large type), or more subtle navitation at the top bar that takes the users to the next page on the site.
+The landing page is a live demo of the wiring. It reads the current population from the Axum API on load, and the two buttons call real endpoints that mutate server state and return it, with a toast on each change. Every piece a real app needs is already threaded through: typed responses, CORS, SSR-safe hydration, and error-free reloads.
 
-## Pages to build:
+## The Stack
 
-- Landing Page
-    I was thinking this would be great if it was full-screen artwork displayed in a Ken Burns style, and we could find a naviation technique that was interesting for how to show the users to continue navigating through the site.
+Three layers, each in its own top-level directory.
 
-- Books
-    - It would be great to find a way to get your whole collection of books you've illustrated and include them here. Even for one's out-of-print.
-    - I've seen some examples of other book people that have little books with a shadow, we can do something like that if we get the book art assets.
+| Name | Layer | Built with | Port |
+| --- | --- | --- | --- |
+| **Horizon** | Frontend | Vue & Nuxt | `:3000` |
+| **Bedrock** | Backend | Rust & Axum | `:8080` |
+| **Cellar** | Database | PostgreSQL & SQLx | `:5432` |
 
-- Book Detail Page
-    - clicking each book from the books page will take you to it's detail page
-    - Should contain the following metadata. Let me know if i'm missing anything.
-        - Title
-        - Pub date
-        - Credits 
-        - Publisher
-        - Synopsis
-        - (something else i'm missing)
-    - An image or two from inside the book would be nice.
-    
-- Paintings
-    - Here we show all of the categories of paintings, with one key image per category
-    - User clicks one and it takes them to the Paintings Category page. 
+```
+Browser  ->  horizon  ->  bedrock  ->  cellar
+             (Nuxt)      (Axum API)   (Postgres)
+```
 
-- Paintings Category
-    - So we have one of these pages for each category: landscape, figure, etc etc.
-    - It would be nice to have a headline where we say something about this category of work.
-    - A headline image too would be great. Something symbolic of this section of your paintings
-    - Then show a gallery of all your favorite paintings in this gallery.
-    - When the users click on each painting, perhaps it brings up a full-screen slideshow, where the user can click left or right, and it would cycle to the next painting quickly.
+`horizon` renders the UI and talks to `bedrock` over HTTP. `bedrock` owns the business logic and is the only thing that touches the database. `cellar` stores the data, and nothing else reaches it directly.
 
-- About Dan(Bio?)
-    - Same copy as your current bio
-    - Reformat the page so it has more of a literary/magazine vibe perhaps.
-    - Add addtl photo(s)
+## About the Names
 
-Contact
-    - Straightforward page, but we'll make it work this time!
+The parts of a web app tend to come with jargon instead of names. These are a cross-section of the land itself, top to bottom.
+
+- **Big Sky** — the whole thing. Everything above, below, and in between.
+- **Horizon** — the frontend. The visible edge. What you actually look at.
+- **Bedrock** — the backend. Structural, load-bearing, out of sight.
+- **Cellar** — the database. Dug in, cool and dark, and it remembers everything.
+
+## Getting Started
+
+Requires Node.js 20+, pnpm 11+, and Rust 1.85+ (the floor for the 2024 edition).
+
+```bash
+git clone https://github.com/joncorv/big-sky.git
+cd big-sky
+```
+
+Then start each layer in its own terminal.
+
+```bash
+cd horizon && pnpm install && pnpm dev    # http://localhost:3000
+cd bedrock && cargo run                   # http://localhost:8080
+```
+
+## The API
+
+| Route  | Returns                                    |
+| ------ | ------------------------------------------ |
+| `/`    | Current population                         |
+| `/add` | Increments, returns the count and a message |
+| `/sub` | Decrements, returns the count and a message |
+
+## Persistence
+
+`bedrock` currently holds the population in `AppState` behind an `Arc<Mutex<i32>>`, so the count is live and shared across clients but resets when the server restarts.
+
+Swapping that for Postgres is the one outstanding piece. The seam is deliberately narrow — the three handlers in `bedrock/src/main.rs` are the only things that touch the state, so a `PgPool` in `AppState` and three queries is the whole job. `cellar/` is where that service definition goes.
+
+## License
+
+MIT. See [`horizon/LICENSE`](horizon/LICENSE); a root license file is still to be added.

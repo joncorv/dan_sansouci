@@ -1,0 +1,20 @@
+[package]
+name = "bedrock"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+axum = { version = "0.8.9", features = ["macros"] }
+cargo-watch = "8.5.3"
+serde = { version = "1.0.229", features = ["derive"] }
+tokio = { version = "1.53.1", features = ["full"] }
+tower = "0.5.2"
+tower-http = { version = "0.7.0", features = ["cors"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+sqlx = { version = "0.9", features = ["runtime-tokio", "any", "postgres"] }
+
+[dev-dependencies]
+http-body-util = "0.1.0"
+tower = { version = "0.5.2", features = ["util"] }
