@@ -1,4 +1,6 @@
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
 use serde::{Deserialize, Serialize};
+use sqlx::postgres::{PgPool, PgPoolOptions};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -20,13 +22,22 @@ struct Painting {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct LandingImages {
-    src_1: String,
-    src_2: String,
-    src_3: String,
+struct Slideshow {
+    id: Uuid,
+    idx: Option<i32>,
+    src_img: Option<String>,
 }
 
-async fn get_landing_images() {}
+#[axum::debug_handler]
+pub async fn get_slideshow_images(State(pool): State<PgPool>) -> impl IntoResponse {
+    match sqlx::query_as!(Slideshow, "SELECT * FROM slideshow",)
+        .fetch_all(&pool)
+        .await
+    {
+        Ok(data) => Ok((StatusCode::OK, Json(data))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
 
 async fn get_painting_categories() {}
 

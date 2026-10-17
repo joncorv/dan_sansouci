@@ -1,25 +1,24 @@
 {
   "$schema": "https://pg-language-server.com/0.28.2/schema.json",
   "files": {
-    "ignore": ["target/**"]
+    "ignore": ["target/**"],
   },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
-    }
+      "recommended": true,
+    },
   },
   "typecheck": {
-    "enabled": true
+    "enabled": true,
   },
   "db": {
-    // Local development only; matches compose.yml and .env.
+    // Local development only
     "host": "127.0.0.1",
     "port": 5432,
-    "username": "example_user",
-    "password": "example_password",
-    "database": "example_db",
+    "username": "user",
+    "password": "pass",
+    "database": "dan_sansouci_db",
     "connTimeoutSecs": 10,
-    "disableConnection": false
-  }
+  },
 }

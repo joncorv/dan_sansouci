@@ -290,6 +290,7 @@ dependencies = [
  "anyhow",
  "axum",
  "cargo-watch",
+ "dotenvy",
  "http-body-util",
  "serde",
  "sqlx",
