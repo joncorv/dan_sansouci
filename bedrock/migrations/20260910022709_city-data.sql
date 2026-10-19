@@ -5,10 +5,11 @@ CREATE TABLE categories (
     src_img text
 );
 
-CREATE TABLE photos (
+CREATE TABLE paintings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     idx integer,
     name text NOT NULL,
+    medium text,
     src_thumb text,
     src_img text,
     category_id integer REFERENCES categories(category_id) ON DELETE CASCADE
@@ -19,19 +20,6 @@ CREATE TABLE slideshow (
     idx integer,
     src_img text
 );
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 -- Create Categores
@@ -49,7 +37,7 @@ DO UPDATE set
   idx = EXCLUDED.idx,
   name = EXCLUDED.name;
 
-INSERT INTO photos (idx, name, src_thumb, src_img, category_id)
+INSERT INTO paintings (idx, name, src_thumb, src_img, category_id)
 VALUES
     (0, 'Photo 1', '/public/dummy_thumb.jpg', '/public/dummy_image.jpg', 0),
     (1, 'Photo 2', '/public/dummy_thumb.jpg', '/public/dummy_image.jpg', 0),
