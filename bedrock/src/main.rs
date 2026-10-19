@@ -4,10 +4,13 @@ use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 
 mod basic_nav;
+mod dummy_data;
 mod logging;
 
 #[tokio::main]
 async fn main() {
+    dummy_data::parse_args_create_dummy_data();
+
     dotenvy::dotenv().ok();
     let db_connection_string = std::env::var("DATABASE_URL").unwrap();
     let tcp_addr_string = std::env::var("TCP_ADDR").unwrap();

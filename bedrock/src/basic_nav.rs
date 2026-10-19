@@ -26,7 +26,11 @@ struct Painting {
     name: String,
     medium: Option<String>,
     src_thumb: Option<String>,
+    src_thumb_height: Option<i32>,
+    src_thumb_width: Option<i32>,
     src_img: Option<String>,
+    src_img_height: Option<i32>,
+    src_img_width: Option<i32>,
     category_id: Option<i32>,
 }
 
@@ -35,6 +39,8 @@ struct Slideshow {
     id: Uuid,
     idx: Option<i32>,
     src_img: Option<String>,
+    width: Option<i32>,
+    height: Option<i32>,
 }
 
 pub fn build_routes_basic_nav() -> Router<Pool<Postgres>> {
