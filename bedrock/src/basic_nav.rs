@@ -1,24 +1,33 @@
-use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
+use axum::Json;
+use axum::Router;
+use axum::extract::Path;
+use axum::extract::State;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::routing::get;
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::{PgPool, PgPoolOptions};
+use sqlx::Pool;
+use sqlx::Postgres;
+use sqlx::postgres::PgPool;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize)]
-struct PaintingCategory {
-    id: Uuid,
-    index: u32,
-    name: String,
-    thumbnail: String,
+struct Category {
+    category_id: i32,
+    idx: Option<i32>,
+    name: Option<String>,
+    src_img: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Painting {
     id: Uuid,
-    index: u32,
+    idx: Option<i32>,
     name: String,
-    medium: String,
-    src_hq: String,
-    src_thumb: String,
+    medium: Option<String>,
+    src_thumb: Option<String>,
+    src_img: Option<String>,
+    category_id: Option<i32>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -26,6 +35,42 @@ struct Slideshow {
     id: Uuid,
     idx: Option<i32>,
     src_img: Option<String>,
+}
+
+pub fn build_routes_basic_nav() -> Router<Pool<Postgres>> {
+    Router::new()
+        .route("/slideshow", get(get_slideshow_images))
+        .route("/categories", get(get_categories))
+        .route("/paintings/{category_id}", get(get_paintins_in_category))
+}
+
+#[axum::debug_handler]
+pub async fn get_paintins_in_category(
+    State(pool): State<PgPool>,
+    Path(category_id): Path<i32>,
+) -> impl IntoResponse {
+    match sqlx::query_as!(
+        Painting,
+        "SELECT * FROM paintings WHERE category_id = $1",
+        category_id
+    )
+    .fetch_all(&pool)
+    .await
+    {
+        Ok(data) => Ok((StatusCode::OK, Json(data))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+#[axum::debug_handler]
+pub async fn get_categories(State(pool): State<PgPool>) -> impl IntoResponse {
+    match sqlx::query_as!(Category, "SELECT * FROM categories",)
+        .fetch_all(&pool)
+        .await
+    {
+        Ok(data) => Ok((StatusCode::OK, Json(data))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
 }
 
 #[axum::debug_handler]
@@ -38,7 +83,3 @@ pub async fn get_slideshow_images(State(pool): State<PgPool>) -> impl IntoRespon
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
 }
-
-async fn get_painting_categories() {}
-
-async fn get_paintings_by_index() {}
