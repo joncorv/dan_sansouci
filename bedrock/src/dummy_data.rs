@@ -17,25 +17,27 @@ struct _Painting {
     category_id: Option<i32>,
 }
 
-pub async fn parse_args_create_dummy_data() {
+pub async fn parse_args_create_dummy_data() -> Result<(), Error> {
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
             "--dummy" => {
                 println!("dummy mode created");
 
-                let dummy = create_dummy_data();
+                create_dummy_data().await?;
 
-                match dummy {
-                    Ok(_) => println!("all good in the hood dude"),
-                    Err(e) => eprintln!("Error: {e}"),
-                }
+                // match dummy {
+                //     Ok(_) => println!("all good in the hood dude"),
+                //     Err(e) => eprintln!("Error: {e}"),
+                // }
             }
             _ => eprintln!("Unknown argument: {arg}"),
         }
     }
+
+    Ok(())
 }
 
-fn create_dummy_data() -> Result<(), Error> {
+async fn create_dummy_data() -> Result<(), Error> {
     let id = uuid::Uuid::new_v4();
     let image_file =
         "/home/joncorv/Documents/dan_sansouci_cdn/day-of-the-dead/day-of-the-dead-0001.jpg"

@@ -9,7 +9,7 @@ mod logging;
 
 #[tokio::main]
 async fn main() {
-    dummy_data::parse_args_create_dummy_data();
+    dummy_data::parse_args_create_dummy_data().await.unwrap();
 
     dotenvy::dotenv().ok();
     let db_connection_string = std::env::var("DATABASE_URL").unwrap();
