@@ -1,6 +1,10 @@
 use anyhow::Error;
+use aws_config::BehaviorVersion;
+use aws_sdk_s3 as s3;
+use aws_sdk_s3::primitives::ByteStream;
 use image::GenericImageView;
 use image::imageops::FilterType;
+use std::path::Path;
 use uuid::Uuid;
 
 struct _Painting {
@@ -24,11 +28,6 @@ pub async fn parse_args_create_dummy_data() -> Result<(), Error> {
                 println!("dummy mode created");
 
                 create_dummy_data().await?;
-
-                // match dummy {
-                //     Ok(_) => println!("all good in the hood dude"),
-                //     Err(e) => eprintln!("Error: {e}"),
-                // }
             }
             _ => eprintln!("Unknown argument: {arg}"),
         }
@@ -54,6 +53,50 @@ async fn create_dummy_data() -> Result<(), Error> {
         )
         .save_with_format(format!(".temp/{id}_thumb.jpg"), image::ImageFormat::Jpeg)?;
 
+    // Create S3 Stuff
+    let bucket_name = "sdk-example";
+    // Provide your Cloudflare account ID
+    let account_id = "<ACCOUNT_ID>";
+    // Retrieve your S3 API credentials for your R2 bucket via API tokens
+    // (see: https://developers.cloudflare.com/r2/api/tokens)
+    let access_key_id = "<ACCESS_KEY_ID>";
+    let access_key_secret = "<SECRET_ACCESS_KEY>";
+
+    let config = aws_config::defaults(BehaviorVersion::v2026_01_12())
+        .endpoint_url(format!("https://{}.r2.cloudflarestorage.com", account_id))
+        .credentials_provider(aws_sdk_s3::config::Credentials::new(
+            access_key_id,
+            access_key_secret,
+            None, // session token is not used with R2
+            None,
+            "R2",
+        ))
+        .region("auto") // Required by SDK but not used by R2
+        .load()
+        .await;
+
+    let client = s3::Client::new(&config);
+
+    Ok(())
+}
+
+async fn _upload_object(
+    client: &s3::Client,
+    bucket: &str,
+    key: &str,
+    file_path: &str,
+) -> Result<(), s3::Error> {
+    let body = ByteStream::from_path(Path::new(file_path)).await.unwrap();
+
+    client
+        .put_object()
+        .bucket(bucket)
+        .key(key)
+        .body(body)
+        .send()
+        .await?;
+
+    println!("Uploaded {} to {}/{}", file_path, bucket, key);
     Ok(())
 }
 
