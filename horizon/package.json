@@ -20,7 +20,8 @@
     "@nuxt/ui": "^4.10.0",
     "nuxt": "^4.4.8",
     "nuxt-icons": "4.0.0",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.16.0",
