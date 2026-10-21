@@ -9,17 +9,17 @@ CREATE TABLE categories (
     src_img text
 );
 CREATE TABLE paintings (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    category_id integer REFERENCES categories(category_id) ON DELETE CASCADE,
-    idx integer,
+    id uuid PRIMARY KEY,
+    category_id integer NOT NULL REFERENCES categories(category_id) ON DELETE CASCADE,
+    idx integer NOT NULL,
     name text NOT NULL,
-    medium text,
-    src_thumb text,
-    src_thumb_width integer,
-    src_thumb_height integer,
-    src_img text,
-    src_img_width integer,
-    src_img_height integer
+    medium text NOT NULL,
+    src_thumb text NOT NULL,
+    src_thumb_width integer NOT NULL,
+    src_thumb_height integer NOT NULL,
+    src_img text NOT NULL,
+    src_img_width integer NOT NULL,
+    src_img_height integer NOT NULL
 );
 CREATE TABLE slideshow (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

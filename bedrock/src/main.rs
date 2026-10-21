@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 use axum::Router;
 use sqlx::postgres::PgPoolOptions;
 use std::time::Duration;
@@ -9,9 +10,9 @@ mod logging;
 
 #[tokio::main]
 async fn main() {
+    dotenvy::dotenv().ok();
     dummy_data::parse_args_create_dummy_data().await.unwrap();
 
-    dotenvy::dotenv().ok();
     let db_connection_string = std::env::var("DATABASE_URL").unwrap();
     let tcp_addr_string = std::env::var("TCP_ADDR").unwrap();
 
