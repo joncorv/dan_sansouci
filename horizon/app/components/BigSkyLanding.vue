@@ -153,7 +153,9 @@ const services = [
         <!-- Grain layer sits above the frosted fill so the blur stays readable. -->
         <div class="big-sky__panel-grain" aria-hidden="true" />
 
-        <h1 class="big-sky__title">Howdy, Stranger.</h1>
+        <h1 class="big-sky__title">
+          Howdy, Stranger.
+        </h1>
 
         <p class="big-sky__lede">
           You just created a project with the best web framework in the west.

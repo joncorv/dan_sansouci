@@ -35,7 +35,8 @@ export default defineNuxtConfig({
   fonts: {
     families: [
       { name: "Sancreek", provider: "google", weights: [400] },
-      { name: "Inter", provider: "google", weights: [400, 600] },
+      { name: "Cinzel", provider: "google", weights: [400] },
+      { name: "Inter", provider: "google", weights: [300, 400, 600] },
     ],
   },
 });

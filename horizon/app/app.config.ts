@@ -1,12 +1,12 @@
 export default defineAppConfig({
   ui: {
     colors: {
-      primary: 'green',
-      neutral: 'slate'
+      primary: "green",
+      neutral: "slate",
     },
     icon: {
-      mode: 'css',
-      cssLayer: 'base'
-    }
-  }
-})
+      mode: "css",
+      cssLayer: "base",
+    },
+  },
+});

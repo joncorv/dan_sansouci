@@ -7,9 +7,9 @@ useHead({
   },
 });
 
-const title = "Big Sky";
-const description =
-  "Fast, opinionated, ours. A Nuxt frontend, a Rust API, and a Postgres database — wired together and ready on day one.";
+const title = "Dan SanSouci";
+const description
+  = "The online portfolio of Painter and Author Daniel SanSouci";
 
 useSeoMeta({
   title,
