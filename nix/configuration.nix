@@ -3,7 +3,7 @@
   lib,
   pkgs,
   ...
-} @ args:
+}@args:
 {
   imports = [
     (modulesPath + "/installer/scan/not-detected.nix")
@@ -13,7 +13,7 @@
   ];
 
   networking = {
-    hostName = "big-sky";
+    hostName = "dan-sansouci";
     # networkmanager.enable = true;
     # firewall.allowedTCPPorts = [ 3000 ];
   };
@@ -49,12 +49,12 @@
 
   # Only allow connections from my verified users.
   # These are Public Keys and can be commited to version control.
-  users.users.root.openssh.authorizedKeys.keys =
-  [
+  users.users.root.openssh.authorizedKeys.keys = [
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFQqcoRpf/3hi+RZtrsx3V/mgp8xOQ+Q+tNfE3PLXEyl"
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEYi1z8oaqJLZyUd+jh1TI323ThXJPljm7hGgDBmNFp+"
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC//rZ7+MmwQ6Bb1iXRGkVzt+FtRLDR1aDnpFwQkI4hw big-sky"
-  ] ++ (args.extraPublicKeys or []); # this is used for unit-testing this module and can be removed if not needed
+  ]
+  ++ (args.extraPublicKeys or [ ]); # this is used for unit-testing this module and can be removed if not needed
 
   # WARNING: SERIOUSLY... DO NOT TOUCH
   system.stateVersion = "24.05";
