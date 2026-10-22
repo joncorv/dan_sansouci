@@ -2,6 +2,16 @@
 const SLIDE_DURATION = 7000;
 const FADE_DURATION = 1800;
 
+interface Slideshow {
+  src_img: string;
+}
+const { data: slideshow } = await useFetch<Slideshow[]>(
+  "https://api.dansansouci.com/slideshow",
+  {
+    default: () => [],
+  },
+);
+
 const slides = [
   {
     src: "/landing/slideshow_001.jpg",
@@ -125,13 +135,9 @@ onBeforeUnmount(() => {
     <div class="landing__top-gradient" aria-hidden="true" />
 
     <header class="landing__header">
-      <h1 class="landing__title">
-        Dan San Souci
-      </h1>
+      <h1 class="landing__title">Dan San Souci</h1>
 
-      <NuxtLink class="landing__enter" to="/paintings">
-        Enter
-      </NuxtLink>
+      <NuxtLink class="landing__enter" to="/paintings"> Enter </NuxtLink>
     </header>
 
     <nav class="landing__indicators" aria-label="Choose artwork">
@@ -188,15 +194,18 @@ onBeforeUnmount(() => {
 }
 
 .landing__image--1 {
-  animation: landing-kenburns-1 var(--landing-animation-duration) ease-out forwards;
+  animation: landing-kenburns-1 var(--landing-animation-duration) ease-out
+    forwards;
 }
 
 .landing__image--2 {
-  animation: landing-kenburns-2 var(--landing-animation-duration) ease-out forwards;
+  animation: landing-kenburns-2 var(--landing-animation-duration) ease-out
+    forwards;
 }
 
 .landing__image--3 {
-  animation: landing-kenburns-3 var(--landing-animation-duration) ease-out forwards;
+  animation: landing-kenburns-3 var(--landing-animation-duration) ease-out
+    forwards;
 }
 
 .landing__vignette,

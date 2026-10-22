@@ -73,7 +73,7 @@ pub async fn get_categories(State(pool): State<PgPool>) -> impl IntoResponse {
 
 #[axum::debug_handler]
 pub async fn get_slideshow_images(State(pool): State<PgPool>) -> impl IntoResponse {
-    match sqlx::query_as!(SlideshowSelection, "SELECT src_img FROM slideshow",).fetch_all(&pool).await {
+    match sqlx::query_as!(Slideshow, "SELECT * FROM slideshow",).fetch_all(&pool).await {
         Ok(data) => Ok((StatusCode::OK, Json(data))),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
