@@ -9,7 +9,7 @@
     (modulesPath + "/installer/scan/not-detected.nix")
     (modulesPath + "/profiles/qemu-guest.nix")
     ./disk-config.nix
-    ./postgres.nix
+    ./server.nix
   ];
 
   networking = {
@@ -42,7 +42,29 @@
     pkgs.neovim
     pkgs.gh
     pkgs.ghostty.terminfo
+    pkgs.rust-bin.stable.latest.default
+    pkgs.gcc
   ];
+
+  nix.settings = {
+    auto-optimise-store = true;
+    # download-buffer-size = 524288000; # 500 MiB
+    experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
+  };
+
+  users.users.joncorv = {
+    isNormalUser = true;
+    extraGroups = [
+      "wheel"
+      "networkmanager"
+    ];
+    # packages = with pkgs; [
+    #   tree
+    # ];
+  };
 
   # Temp password only used for new-installs
   # users.users.root.initialPassword = "1234";

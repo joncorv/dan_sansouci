@@ -52,7 +52,7 @@ pub async fn parse_args_create_dummy_data() -> Result<(), Error> {
 
 async fn create_dummy_data() -> Result<(), Error> {
     // parse dummy_data json
-    let file = tokio::fs::read_to_string("/Users/joncorv/Documents/dan_sansouci/bedrock/dummy_data/painting_descriptions.json").await?;
+    let file = tokio::fs::read_to_string("dummy_data/painting_descriptions.json").await.unwrap();
     let data: Vec<PaintingDescription> = serde_json::from_str(&file)?;
 
     // Create Database Connection
@@ -64,14 +64,16 @@ async fn create_dummy_data() -> Result<(), Error> {
         .await
         .expect("can't connect to database");
 
-    for d in &data.first() {
+    for d in data.first() {
         println!("{:#?}", d.name);
+        let dummy_dir = std::env::var("DUMMY_DIR")?;
+        let path_to_image_to_process = format!("{}{}", dummy_dir, d.path);
 
         let id = uuid::Uuid::new_v4();
         let transcode_path_hq = format!(".temp/{id}.jpg");
         let transcode_path_thumb = format!(".temp/{id}_thumb.jpg");
 
-        let current_image = image::ImageReader::open(&d.path)?.decode()?;
+        let current_image = image::ImageReader::open(path_to_image_to_process)?.decode()?;
         let dimensions_hq = current_image.dimensions();
         let dimensions_thumb = create_thumbnail_dimensions(current_image.dimensions());
 
@@ -101,14 +103,18 @@ async fn create_dummy_data() -> Result<(), Error> {
 
         let client = s3::Client::new(&config);
 
-        let upload_hq = upload_object(&client, &bucket_name, format!("paintings/{transcode_path_hq}").as_str(), &transcode_path_hq).await;
-        let upload_thumb =
-            upload_object(&client, &bucket_name, format!("paintings/{transcode_path_thumb}").as_str(), &transcode_path_thumb).await;
+        let cdn_path_hq = format!("paintings/{}.jpg", id);
+        let cdn_path_thumb = format!("paintings/{}_thumb.jpg", id);
+
+        let (upload_hq, upload_thumb) = tokio::join!(
+            upload_object(&client, &bucket_name, &cdn_path_hq, &transcode_path_hq),
+            upload_object(&client, &bucket_name, &cdn_path_thumb, &transcode_path_thumb),
+        );
 
         if upload_hq.is_ok() && upload_thumb.is_ok() {
             // let's get this sucker up on the database
             let painting = Painting {
-                id: id,
+                id,
                 idx: d.idx,
                 name: d.name.to_string(),
                 medium: d.medium.to_string(),
@@ -121,38 +127,36 @@ async fn create_dummy_data() -> Result<(), Error> {
                 category_id: d.category_id,
             };
 
-            // sqlx::query_as!(Painting, "SELECT * FROM categories", painting.0, painting.1, painting.2, painting.3).fetch_one(&pool).await?;
-
             let db_painting = sqlx::query_as!(
                 Painting,
                 r#"
-    INSERT INTO paintings (
-        id,
-        idx,
-        name,
-        medium,
-        src_thumb,
-        src_thumb_height,
-        src_thumb_width,
-        src_img,
-        src_img_height,
-        src_img_width,
-        category_id
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-    RETURNING
-        id,
-        idx,
-        name,
-        medium,
-        src_thumb,
-        src_thumb_height,
-        src_thumb_width,
-        src_img,
-        src_img_height,
-        src_img_width,
-        category_id
-    "#,
+        INSERT INTO paintings (
+            id,
+            idx,
+            name,
+            medium,
+            src_thumb,
+            src_thumb_height,
+            src_thumb_width,
+            src_img,
+            src_img_height,
+            src_img_width,
+            category_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING
+            id,
+            idx,
+            name,
+            medium,
+            src_thumb,
+            src_thumb_height,
+            src_thumb_width,
+            src_img,
+            src_img_height,
+            src_img_width,
+            category_id
+        "#,
                 painting.id,
                 painting.idx,
                 painting.name,
