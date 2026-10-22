@@ -58,8 +58,8 @@ pub async fn parse_args_create_dummy_data() -> Result<(), Error> {
             "--dummy" => {
                 println!("dummy mode created");
 
-                // create_dummy_categories().await?;
-                // create_dummy_paintings().await?;
+                create_dummy_categories().await?;
+                create_dummy_paintings().await?;
                 create_dummy_slideshow().await?;
             }
             _ => eprintln!("Unknown argument: {arg}"),
