@@ -83,7 +83,7 @@ async fn create_dummy_categories() -> Result<(), Error> {
         "book-art.jpg",
     ];
 
-    for (index, filename) in simple_filenames.into_iter().enumerate() {
+    for filename in simple_filenames {
         println!("transcoding: {:#?}", filename);
 
         let image_path_to_be_transcoded = format!("{dummy_dir}/categories/{filename}");
@@ -173,8 +173,7 @@ async fn create_dummy_categories() -> Result<(), Error> {
         .await
         .expect("can't connect to database");
 
-    let mut index = 0;
-    for category in categories {
+    for (index, category) in categories.into_iter().enumerate() {
         sqlx::query_as!(
             Category,
             r#"
@@ -206,25 +205,10 @@ async fn create_dummy_categories() -> Result<(), Error> {
         .await?;
 
         println!("sent {} to the database", category.name);
-
-        index += 1;
     }
 
     Ok(())
 }
-
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
 
 async fn create_dummy_slideshow() -> Result<(), Error> {
     let mut index: i32 = 0;
