@@ -22,11 +22,11 @@ CREATE TABLE paintings (
     src_img_height integer NOT NULL
 );
 CREATE TABLE slideshow (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    idx integer,
-    src_img text,
-    width integer,
-    height integer
+    id uuid PRIMARY KEY,
+    idx integer NOT NULL,
+    src_img text NOT NULL,
+    width integer NOT NULL,
+    height integer NOT NULL
 );
 
 -----------------------------------------------------------
@@ -46,11 +46,11 @@ DO UPDATE set
   idx = EXCLUDED.idx,
   name = EXCLUDED.name;
 
-INSERT INTO slideshow (idx, src_img)
-VALUES 
-    (0, '/public/slideshow/slideshow_01.jpg'),
-    (1, '/public/slideshow/slideshow_02.jpg'),
-    (2, '/public/slideshow/slideshow_03.jpg');
+-- INSERT INTO slideshow (idx, src_img)
+-- VALUES 
+--     (0, '/public/slideshow/slideshow_01.jpg'),
+--     (1, '/public/slideshow/slideshow_02.jpg'),
+--     (2, '/public/slideshow/slideshow_03.jpg');
 -- ON CONFLICT (idx)
 -- DO UPDATE set 
 --   idx = EXCLUDED.idx,

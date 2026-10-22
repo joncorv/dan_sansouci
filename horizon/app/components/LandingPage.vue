@@ -3,7 +3,11 @@ const SLIDE_DURATION = 7000;
 const FADE_DURATION = 1800;
 
 interface Slideshow {
+  id: string;
   src_img: string;
+  idx?: number;
+  width?: number;
+  height?: number;
 }
 const { data: slideshow } = await useFetch<Slideshow[]>(
   "https://api.dansansouci.com/slideshow",
@@ -11,6 +15,8 @@ const { data: slideshow } = await useFetch<Slideshow[]>(
     default: () => [],
   },
 );
+
+console.log(slideshow.value);
 
 const slides = [
   {
@@ -108,16 +114,15 @@ onBeforeUnmount(() => {
     aria-label="Selected artwork by Dan San Souci"
   >
     <div
-      v-for="(slide, index) in slides"
-      :key="slide.src"
+      v-for="(slide, index) in slideshow"
+      :key="slide.src_img"
       class="landing__slide"
       :class="{ 'landing__slide--active': index === currentSlide }"
       :aria-hidden="index !== currentSlide"
     >
       <NuxtImg
-        :key="`${slide.src}-${animationRuns[index]}`"
-        :src="slide.src"
-        :alt="slide.alt"
+        :key="`${slide.src_img}-${animationRuns[index]}`"
+        :src="'https://cdn.dansansouci.com' + slide.src_img"
         :width="slide.width"
         :height="slide.height"
         sizes="sm:100vw md:100vw lg:100vw xl:100vw"

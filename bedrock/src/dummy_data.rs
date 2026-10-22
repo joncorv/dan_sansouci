@@ -35,13 +35,23 @@ struct PaintingDescription {
     category_id: i32,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct Slideshow {
+    id: Uuid,
+    idx: i32,
+    src_img: String,
+    width: i32,
+    height: i32,
+}
+
 pub async fn parse_args_create_dummy_data() -> Result<(), Error> {
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
             "--dummy" => {
                 println!("dummy mode created");
 
-                create_dummy_data().await?;
+                // create_dummy_paintings().await?;
+                create_dummy_slideshow().await?;
             }
             _ => eprintln!("Unknown argument: {arg}"),
         }
@@ -50,7 +60,107 @@ pub async fn parse_args_create_dummy_data() -> Result<(), Error> {
     Ok(())
 }
 
-async fn create_dummy_data() -> Result<(), Error> {
+async fn create_dummy_slideshow() -> Result<(), Error> {
+    // parse dummy_data json
+    let file = tokio::fs::read_to_string("dummy_data/painting_descriptions.json").await.unwrap();
+    let data: Vec<PaintingDescription> = serde_json::from_str(&file)?;
+    let dummy_dir = std::env::var("DUMMY_DIR")?;
+
+    let images_paths_to_process =
+        [format!("{dummy_dir}/slideshow_001.jpg"), format!("{dummy_dir}/slideshow_002.jpg"), format!("{dummy_dir}/slideshow_003.jpg")];
+
+    // Create Database Connection
+    let db_connection_string = std::env::var("DATABASE_URL").unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&db_connection_string)
+        .await
+        .expect("can't connect to database");
+
+    let mut index: i32 = 0;
+    for image_path in images_paths_to_process {
+        println!("{:#?}", &image_path);
+
+        let id = uuid::Uuid::new_v4();
+        let transcode_path = format!(".temp/{id}.jpg");
+
+        let current_image = image::ImageReader::open(&image_path)?.decode()?;
+        let dimensions_hq = current_image.dimensions();
+
+        current_image.save_with_format(&transcode_path, image::ImageFormat::Jpeg)?;
+
+        // Create S3 Stuff
+        let bucket_name = std::env::var("S3_BUCKET_NAME")?;
+        let account_id = std::env::var("S3_ACCOUNT_ID")?;
+        let access_key_id = std::env::var("S3_ACCESS_KEY_ID")?;
+        let access_key_secret = std::env::var("S3_ACCESS_KEY_SECRET")?;
+
+        let config = aws_config::defaults(BehaviorVersion::v2026_01_12())
+            .endpoint_url(format!("https://{}.r2.cloudflarestorage.com", account_id))
+            .credentials_provider(aws_sdk_s3::config::Credentials::new(
+                &access_key_id,
+                &access_key_secret,
+                None, // session token is not used with R2
+                None,
+                "R2",
+            ))
+            .region("auto") // Required by SDK but not used by R2
+            .load()
+            .await;
+
+        let client = s3::Client::new(&config);
+
+        let cdn_destination_path = format!("slideshow/{}.jpg", id);
+
+        let upload_hq = upload_object(&client, &bucket_name, &cdn_destination_path, &transcode_path).await;
+        let api_base_url = format!("https://api.dansansouci.com/{}", cdn_destination_path);
+
+        if upload_hq.is_ok() {
+            // let's get this sucker up on the database
+            //
+            let slideshow =
+                Slideshow { id, idx: index, src_img: api_base_url, width: dimensions_hq.0 as i32, height: dimensions_hq.1 as i32 };
+
+            let db_slideshow = sqlx::query_as!(
+                Slideshow,
+                r#"
+        INSERT INTO slideshow (
+            id,
+            idx,
+            src_img,
+            width,
+            height
+        )
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING
+            id,
+            idx,
+            src_img,
+            width,
+            height
+        "#,
+                slideshow.id,
+                slideshow.idx,
+                slideshow.src_img,
+                slideshow.width,
+                slideshow.height,
+            )
+            .fetch_one(&pool)
+            .await;
+
+            if db_slideshow.is_ok() {
+                println!("Slideshow is sent to database")
+            };
+        }
+    }
+
+    index += 1;
+
+    Ok(())
+}
+
+async fn create_dummy_paintings() -> Result<(), Error> {
     // parse dummy_data json
     let file = tokio::fs::read_to_string("dummy_data/painting_descriptions.json").await.unwrap();
     let data: Vec<PaintingDescription> = serde_json::from_str(&file)?;
