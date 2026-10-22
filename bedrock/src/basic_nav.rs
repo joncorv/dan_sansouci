@@ -14,9 +14,9 @@ use uuid::Uuid;
 #[derive(Debug, Deserialize, Serialize)]
 struct Category {
     category_id: i32,
-    idx: Option<i32>,
-    name: Option<String>,
-    src_img: Option<String>,
+    idx: i32,
+    name: String,
+    src_img: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
