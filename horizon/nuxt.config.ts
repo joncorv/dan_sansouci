@@ -8,6 +8,7 @@ export default defineNuxtConfig({
     "nuxt-icons",
     "@nuxt/fonts",
     "@nuxt/icon",
+    "nitro-cloudflare-dev"
   ],
   ssr: true,
 
@@ -24,11 +25,17 @@ export default defineNuxtConfig({
   compatibilityDate: "2026-06-30",
 
   nitro: {
-    preset: "cloudflare_pages",
+    preset: "cloudflare_module",
+
     prerender: {
       routes: ["/"],
       crawlLinks: true,
     },
+
+    cloudflare: {
+      deployConfig: true,
+      nodeCompat: true
+    }
   },
 
   eslint: {
