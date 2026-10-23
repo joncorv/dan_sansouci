@@ -1,13 +1,14 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "web",
+  // name for cloudflare workers project
+  "name": "dan-sansouci",
   "main": "./.output/server/index.mjs",
   "compatibility_date": "2026-10-19",
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   "assets": {
     "binding": "ASSETS",
-    "directory": "./.output/public/"
-  }
+    "directory": "./.output/public/",
+  },
 }
