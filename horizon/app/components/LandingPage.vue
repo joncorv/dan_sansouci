@@ -2,13 +2,6 @@
 const SLIDE_DURATION = 7000;
 const FADE_DURATION = 1800;
 
-interface Slideshow {
-  id: string;
-  idx: number;
-  src_img: string;
-  width: number;
-  height: number;
-}
 const { data: slideshow } = await useFetch<Slideshow[]>(
   "https://api.dansansouci.com/slideshow",
   {

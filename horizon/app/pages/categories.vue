@@ -5,59 +5,15 @@ useSeoMeta({
     "Explore original paintings by Dan San Souci, from wildlife and landscapes to portraits, illustrations, and book art.",
 });
 
-const categories = [
+const { data: categories } = await useFetch<Category[]>(
+  "https://api.dansansouci.com/categories",
   {
-    id: "wildlife",
-    label: "Wildlife",
-    src: "/categories/wildlife.jpg",
-    width: 3000,
-    height: 1491,
-    count: 6,
+    default: () => [],
   },
-  {
-    id: "day-of-the-dead",
-    label: "Day of the Dead",
-    src: "/categories/day-of-the-dead.jpg",
-    width: 1875,
-    height: 1416,
-    count: 5,
-  },
-  {
-    id: "landscapes-cityscapes",
-    label: "Landscapes & Cityscapes",
-    src: "/categories/landscapes.jpg",
-    width: 3000,
-    height: 2014,
-    count: 6,
-  },
-  {
-    id: "figurative-portraits",
-    label: "Figurative & Portraits",
-    src: "/categories/figurative-portraits.jpg",
-    width: 3000,
-    height: 2229,
-    count: 5,
-  },
-  {
-    id: "illustrations",
-    label: "Illustrations",
-    src: "/categories/illustrations.jpg",
-    width: 2048,
-    height: 1440,
-    count: 5,
-  },
-  {
-    id: "book-art",
-    label: "Book Art",
-    src: "/categories/book-art.jpg",
-    width: 1010,
-    height: 871,
-    count: 6,
-  },
-] as const;
+);
 
-const hoveredCategory = ref<string | null>(null);
-const focusedCategory = ref<string | null>(null);
+const hoveredCategory = ref<number | null>(null);
+const focusedCategory = ref<number | null>(null);
 const activeCategory = computed(
   () => hoveredCategory.value ?? focusedCategory.value,
 );
@@ -77,60 +33,58 @@ const activeCategory = computed(
     <div class="paintings__backgrounds" aria-hidden="true">
       <div
         v-for="category in categories"
-        :key="category.id"
+        :key="category.category_id"
         class="paintings__background"
         :class="{
-          'paintings__background--active': activeCategory === category.id,
+          'paintings__background--active':
+            activeCategory === category.category_id,
         }"
       >
-        <NuxtImg
-          :src="category.src"
-          :width="category.width"
-          :height="category.height"
+        <img
+          :src="category.src_img"
           alt=""
-          format="webp"
-          sizes="sm:100vw md:100vw lg:100vw xl:100vw"
           loading="lazy"
           class="paintings__background-image"
-        />
+        >
       </div>
     </div>
 
     <ul class="paintings__categories">
       <li
         v-for="(category, index) in categories"
-        :key="category.id"
+        :key="category.category_id"
         class="paintings__category"
         :class="{
-          'paintings__category--active': activeCategory === category.id,
+          'paintings__category--active':
+            activeCategory === category.category_id,
         }"
-        tabindex="0"
-        @mouseenter="hoveredCategory = category.id"
-        @mouseleave="hoveredCategory = null"
-        @focus="focusedCategory = category.id"
-        @blur="focusedCategory = null"
       >
-        <NuxtImg
-          :src="category.src"
-          :width="category.width"
-          :height="category.height"
-          alt=""
-          format="webp"
-          sizes="sm:50vw md:50vw"
-          :loading="index < 2 ? 'eager' : 'lazy'"
-          class="paintings__tile-image"
-        />
-        <span class="paintings__number" aria-hidden="true">
-          {{ String(index + 1).padStart(2, "0") }}
-        </span>
-        <h2 class="paintings__name">
-          {{ category.label }}
-        </h2>
-        <span class="paintings__count">
-          <!-- {{ category.count }} works -->
-          10 works
-          <span class="paintings__arrow" aria-hidden="true">→</span>
-        </span>
+        <NuxtLink
+          :to="`/paintings/${category.category_id}`"
+          class="paintings__link"
+          @mouseenter="hoveredCategory = category.category_id"
+          @mouseleave="hoveredCategory = null"
+          @focus="focusedCategory = category.category_id"
+          @blur="focusedCategory = null"
+        >
+          <img
+            :src="category.src_img"
+            alt=""
+            :loading="index < 2 ? 'eager' : 'lazy'"
+            class="paintings__tile-image"
+          >
+          <span class="paintings__number" aria-hidden="true">
+            {{ String(index + 1).padStart(2, "0") }}
+          </span>
+          <h2 class="paintings__name">
+            {{ category.name }}
+          </h2>
+          <span class="paintings__count">
+            <!-- {{ category.count }} works -->
+            10 works
+            <span class="paintings__arrow" aria-hidden="true">→</span>
+          </span>
+        </NuxtLink>
       </li>
     </ul>
   </section>
@@ -196,13 +150,7 @@ const activeCategory = computed(
 }
 
 .paintings__category {
-  display: flex;
-  align-items: baseline;
-  gap: 2rem;
-  width: 100%;
-  padding: clamp(1.1rem, 2vw, 1.6rem) clamp(2.5rem, 6vw, 6rem);
   border-top: 1px solid var(--portfolio-divider);
-  cursor: default;
   transition: border-color 400ms ease;
 }
 
@@ -210,7 +158,17 @@ const activeCategory = computed(
   border-bottom: 1px solid var(--portfolio-divider);
 }
 
-.paintings__category:focus-visible {
+.paintings__link {
+  display: flex;
+  align-items: baseline;
+  gap: 2rem;
+  width: 100%;
+  padding: clamp(1.1rem, 2vw, 1.6rem) clamp(2.5rem, 6vw, 6rem);
+  color: inherit;
+  text-decoration: none;
+}
+
+.paintings__link:focus-visible {
   outline: 2px solid var(--portfolio-accent);
   outline-offset: -3px;
 }
@@ -339,6 +297,12 @@ const activeCategory = computed(
     overflow: hidden;
     border: 0;
     background: var(--portfolio-image-bg);
+  }
+
+  .paintings__link {
+    display: block;
+    height: 100%;
+    padding: 0;
   }
 
   .paintings__tile-image {
