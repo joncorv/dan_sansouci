@@ -1,0 +1,148 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM paintings WHERE category_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "category_id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "category_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "idx",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "idx"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "medium",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "medium"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "src_thumb",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "src_thumb"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "src_thumb_width",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "src_thumb_width"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "src_thumb_height",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "src_thumb_height"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "src_img",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "src_img"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "src_img_width",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "src_img_width"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "src_img_height",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "src_img_height"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "354123d2d1cbe2b562a06cfee7294d3c7e74c2bfbcdbdd8fb787e677b20edd7e"
+}

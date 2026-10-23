@@ -29,8 +29,8 @@
         system = "x86_64-linux";
         modules = [
           disko.nixosModules.disko
-          ./configuration.nix
-          ./hardware-configuration.nix
+          ./nix/configuration.nix
+          ./nix/hardware-configuration.nix
           sops-nix.nixosModules.sops
           ({ pkgs, ... }: {
             nixpkgs.overlays = [ rust-overlay.overlays.default ];

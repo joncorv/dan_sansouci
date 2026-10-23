@@ -1,0 +1,67 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO categories (\n                category_id,\n                idx,\n                name,\n                src_img\n            )\n            VALUES ($1, $2, $3, $4)\n            ON CONFLICT (category_id) \n            DO UPDATE set\n                category_id = EXCLUDED.category_id,\n                idx = EXCLUDED.idx,\n                name = EXCLUDED.name,\n                src_img = EXCLUDED.src_img\n            RETURNING\n                category_id,\n                idx,\n                name,\n                src_img\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "category_id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "categories",
+            "name": "category_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "idx",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "categories",
+            "name": "idx"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "categories",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "src_img",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "categories",
+            "name": "src_img"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1afebfa956653d0e053ceb149045c79175bd04840b483bc9fe6dad1b9ae83e51"
+}
