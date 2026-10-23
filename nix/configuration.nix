@@ -9,6 +9,7 @@
     (modulesPath + "/installer/scan/not-detected.nix")
     (modulesPath + "/profiles/qemu-guest.nix")
     ./disk-config.nix
+    ./bedrock.nix
     ./server.nix
   ];
 
@@ -23,16 +24,16 @@
   sops.age.keyFile = "/var/lib/sops-nix/key.txt";
   sops.age.generateKey = false;
 
-  # All secrets
-  sops.secrets.DATABASE_URL = { };
-  sops.secrets.TCP_ADDR = { };
-  sops.secrets.S3_BUCKET_NAME = { };
-  sops.secrets.S3_API_TOKEN = { };
-  sops.secrets.S3_ACCOUNT_ID = { };
-  sops.secrets.S3_ACCESS_KEY_ID = { };
-  sops.secrets.S3_ACCESS_KEY_SECRET = { };
-  sops.secrets.S3_API_ENDPOINT = { };
-  sops.secrets.DUMMY_DIR = { };
+  # # All secrets
+  # sops.secrets.DATABASE_URL = { };
+  # sops.secrets.TCP_ADDR = { };
+  # sops.secrets.S3_BUCKET_NAME = { };
+  # sops.secrets.S3_API_TOKEN = { };
+  # sops.secrets.S3_ACCOUNT_ID = { };
+  # sops.secrets.S3_ACCESS_KEY_ID = { };
+  # sops.secrets.S3_ACCESS_KEY_SECRET = { };
+  # sops.secrets.S3_API_ENDPOINT = { };
+  # sops.secrets.DUMMY_DIR = { };
 
   # SSH
   services.openssh.enable = true;
