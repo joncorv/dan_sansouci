@@ -4,6 +4,8 @@
   inputs.disko.url = "github:nix-community/disko";
   inputs.disko.inputs.nixpkgs.follows = "nixpkgs";
   inputs.nixos-facter-modules.url = "github:numtide/nixos-facter-modules";
+  inputs.sops-nix.url = "github:Mic92/sops-nix";
+  inputs.sops-nix.inputs.nixpkgs.follows = "nixpkgs";
 
   inputs.rust-overlay = {
     url = "github:oxalica/rust-overlay";
@@ -15,6 +17,7 @@
       nixpkgs,
       disko,
       nixos-facter-modules,
+      sops-nix,
       rust-overlay,
       ...
     }:
@@ -28,6 +31,7 @@
           disko.nixosModules.disko
           ./configuration.nix
           ./hardware-configuration.nix
+          sops-nix.nixosModules.sops
           ({ pkgs, ... }: {
             nixpkgs.overlays = [ rust-overlay.overlays.default ];
             environment.systemPackages = [ pkgs.rust-bin.stable.latest.default ];

@@ -33,3 +33,10 @@ switch \
 --target-host user@ip-address \
 --build-host user@ip-address
 ```
+
+## SOPS Secrets
+
+OK this is a harder section to grok.
+
+1. Make sure sops is installed
+2. asdfasdf
