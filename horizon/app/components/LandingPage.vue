@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { ComponentPublicInstance } from "vue";
+
 const SLIDE_DURATION = 7000;
 const FADE_DURATION = 1800;
 
@@ -9,31 +11,15 @@ const { data: slideshow } = await useFetch<Slideshow[]>(
   },
 );
 
-// console.log(slideshow.value);
+const imageElements: (HTMLImageElement | null)[] = [];
 
-const slides = [
-  {
-    src: "/landing/slideshow_001.jpg",
-    width: 2000,
-    height: 1500,
-    alt: "Dan San Souci illustration of a herd of elephants",
-  },
-  {
-    src: "/landing/slideshow_002.jpg",
-    width: 2048,
-    height: 1529,
-    alt: "Dan San Souci portrait of a woman beside a lion",
-  },
-  {
-    src: "/landing/slideshow_003.jpg",
-    width: 2048,
-    height: 1531,
-    alt: "Dan San Souci cityscape with flower-covered arches",
-  },
-] as const;
+function setImageElement(index: number) {
+  return (el: Element | ComponentPublicInstance | null) => {
+    imageElements[index] = el as HTMLImageElement | null;
+  };
+}
 
 const currentSlide = ref(0);
-const animationRuns = ref(slides.map(() => 0));
 const timingStyles = {
   "--landing-fade-duration": `${FADE_DURATION}ms`,
   "--landing-animation-duration": `${SLIDE_DURATION + FADE_DURATION}ms`,
@@ -43,16 +29,24 @@ let autoplayTimer: ReturnType<typeof setInterval> | undefined;
 let reducedMotionQuery: MediaQueryList | undefined;
 
 function showSlide(index: number) {
-  animationRuns.value[index] = (animationRuns.value[index] ?? 0) + 1;
+  // restart the Ken Burns animation without remounting the <img>, so the
+  // already-decoded image is reused instead of being fetched and decoded again
+  for (const animation of imageElements[index]?.getAnimations() ?? []) {
+    animation.currentTime = 0;
+  }
   currentSlide.value = index;
 }
 
 function showNextSlide() {
-  showSlide((currentSlide.value + 1) % slides.length);
+  showSlide((currentSlide.value + 1) % slideshow.value.length);
 }
 
 function startAutoplay() {
-  if (autoplayTimer || reducedMotionQuery?.matches) {
+  if (
+    autoplayTimer
+    || reducedMotionQuery?.matches
+    || slideshow.value.length < 2
+  ) {
     return;
   }
 
@@ -108,25 +102,22 @@ onBeforeUnmount(() => {
   >
     <div
       v-for="(slide, index) in slideshow"
-      :key="slide.src_img"
+      :key="slide.id"
       class="landing__slide"
       :class="{ 'landing__slide--active': index === currentSlide }"
       :aria-hidden="index !== currentSlide"
     >
-      <NuxtImg
-        :key="`${slide.src_img}-${animationRuns[index]}`"
+      <img
+        :ref="setImageElement(index)"
         :src="slide.src_img"
         :width="slide.width"
         :height="slide.height"
-        sizes="sm:100vw md:100vw lg:100vw xl:100vw"
-        format="webp"
-        :preload="index === 0"
-        :fetchpriority="index === 0 ? 'high' : 'auto'"
-        :loading="index === 0 ? 'eager' : 'lazy'"
+        alt=""
+        :fetchpriority="index === 0 ? 'high' : 'low'"
         class="landing__image"
-        :class="`landing__image--${index + 1}`"
+        :class="`landing__image--${(index % 3) + 1}`"
         draggable="false"
-      />
+      >
     </div>
 
     <div class="landing__vignette" aria-hidden="true" />
@@ -140,8 +131,8 @@ onBeforeUnmount(() => {
 
     <nav class="landing__indicators" aria-label="Choose artwork">
       <button
-        v-for="(_, index) in slides"
-        :key="index"
+        v-for="(slide, index) in slideshow"
+        :key="slide.id"
         type="button"
         class="landing__indicator"
         :aria-label="`Show artwork ${index + 1}`"
