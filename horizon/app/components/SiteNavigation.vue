@@ -8,15 +8,11 @@ defineProps<{ mobile?: boolean }>();
     :class="{ 'site-navigation--mobile': mobile }"
     aria-label="Main navigation"
   >
-    <NuxtLink class="site-navigation__link" to="/paintings">
+    <NuxtLink class="site-navigation__link" to="/categories">
       Paintings
     </NuxtLink>
-    <NuxtLink class="site-navigation__link" to="/about">
-      About
-    </NuxtLink>
-    <NuxtLink class="site-navigation__link" to="/contact">
-      Contact
-    </NuxtLink>
+    <NuxtLink class="site-navigation__link" to="/about"> About </NuxtLink>
+    <NuxtLink class="site-navigation__link" to="/contact"> Contact </NuxtLink>
   </nav>
 </template>
 

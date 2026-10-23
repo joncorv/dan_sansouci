@@ -9,18 +9,27 @@ export default defineNuxtConfig({
     "@nuxt/fonts",
     "@nuxt/icon",
   ],
-
-  // Client-side rendered. Nuxt emits a static index.html shell and the app
-  // boots entirely in the browser, so every $fetch goes out cross-origin.
-  ssr: false,
+  ssr: true,
 
   devtools: {
     enabled: true,
   },
 
+  app: {
+    pageTransition: { name: "page", mode: "out-in" },
+  },
+
   css: ["~/assets/css/main.css"],
 
   compatibilityDate: "2026-06-30",
+
+  nitro: {
+    preset: "cloudflare_pages",
+    prerender: {
+      routes: ["/"],
+      crawlLinks: true,
+    },
+  },
 
   eslint: {
     config: {

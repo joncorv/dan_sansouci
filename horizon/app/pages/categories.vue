@@ -1,21 +1,66 @@
 <script setup lang="ts">
 useSeoMeta({
   title: "Paintings | Dan San Souci",
-  description: "Explore original paintings by Dan San Souci, from wildlife and landscapes to portraits, illustrations, and book art.",
+  description:
+    "Explore original paintings by Dan San Souci, from wildlife and landscapes to portraits, illustrations, and book art.",
 });
 
 const categories = [
-  { id: "wildlife", label: "Wildlife", src: "/categories/wildlife.jpg", width: 3000, height: 1491, count: 6 },
-  { id: "day-of-the-dead", label: "Day of the Dead", src: "/categories/day-of-the-dead.jpg", width: 1875, height: 1416, count: 5 },
-  { id: "landscapes-cityscapes", label: "Landscapes & Cityscapes", src: "/categories/landscapes.jpg", width: 3000, height: 2014, count: 6 },
-  { id: "figurative-portraits", label: "Figurative & Portraits", src: "/categories/figurative-portraits.jpg", width: 3000, height: 2229, count: 5 },
-  { id: "illustrations", label: "Illustrations", src: "/categories/illustrations.jpg", width: 2048, height: 1440, count: 5 },
-  { id: "book-art", label: "Book Art", src: "/categories/book-art.jpg", width: 1010, height: 871, count: 6 },
+  {
+    id: "wildlife",
+    label: "Wildlife",
+    src: "/categories/wildlife.jpg",
+    width: 3000,
+    height: 1491,
+    count: 6,
+  },
+  {
+    id: "day-of-the-dead",
+    label: "Day of the Dead",
+    src: "/categories/day-of-the-dead.jpg",
+    width: 1875,
+    height: 1416,
+    count: 5,
+  },
+  {
+    id: "landscapes-cityscapes",
+    label: "Landscapes & Cityscapes",
+    src: "/categories/landscapes.jpg",
+    width: 3000,
+    height: 2014,
+    count: 6,
+  },
+  {
+    id: "figurative-portraits",
+    label: "Figurative & Portraits",
+    src: "/categories/figurative-portraits.jpg",
+    width: 3000,
+    height: 2229,
+    count: 5,
+  },
+  {
+    id: "illustrations",
+    label: "Illustrations",
+    src: "/categories/illustrations.jpg",
+    width: 2048,
+    height: 1440,
+    count: 5,
+  },
+  {
+    id: "book-art",
+    label: "Book Art",
+    src: "/categories/book-art.jpg",
+    width: 1010,
+    height: 871,
+    count: 6,
+  },
 ] as const;
 
 const hoveredCategory = ref<string | null>(null);
 const focusedCategory = ref<string | null>(null);
-const activeCategory = computed(() => hoveredCategory.value ?? focusedCategory.value);
+const activeCategory = computed(
+  () => hoveredCategory.value ?? focusedCategory.value,
+);
 </script>
 
 <template>
@@ -25,12 +70,8 @@ const activeCategory = computed(() => hoveredCategory.value ?? focusedCategory.v
     aria-labelledby="paintings-title"
   >
     <div class="paintings__heading">
-      <p class="paintings__eyebrow">
-        Original Work
-      </p>
-      <h1 id="paintings-title" class="paintings__title">
-        Paintings
-      </h1>
+      <p class="paintings__eyebrow">Original Work</p>
+      <h1 id="paintings-title" class="paintings__title">Paintings</h1>
     </div>
 
     <div class="paintings__backgrounds" aria-hidden="true">
@@ -38,7 +79,9 @@ const activeCategory = computed(() => hoveredCategory.value ?? focusedCategory.v
         v-for="category in categories"
         :key="category.id"
         class="paintings__background"
-        :class="{ 'paintings__background--active': activeCategory === category.id }"
+        :class="{
+          'paintings__background--active': activeCategory === category.id,
+        }"
       >
         <NuxtImg
           :src="category.src"
@@ -58,7 +101,9 @@ const activeCategory = computed(() => hoveredCategory.value ?? focusedCategory.v
         v-for="(category, index) in categories"
         :key="category.id"
         class="paintings__category"
-        :class="{ 'paintings__category--active': activeCategory === category.id }"
+        :class="{
+          'paintings__category--active': activeCategory === category.id,
+        }"
         tabindex="0"
         @mouseenter="hoveredCategory = category.id"
         @mouseleave="hoveredCategory = null"
@@ -76,13 +121,14 @@ const activeCategory = computed(() => hoveredCategory.value ?? focusedCategory.v
           class="paintings__tile-image"
         />
         <span class="paintings__number" aria-hidden="true">
-          {{ String(index + 1).padStart(2, '0') }}
+          {{ String(index + 1).padStart(2, "0") }}
         </span>
         <h2 class="paintings__name">
           {{ category.label }}
         </h2>
         <span class="paintings__count">
-          {{ category.count }} works
+          <!-- {{ category.count }} works -->
+          10 works
           <span class="paintings__arrow" aria-hidden="true">→</span>
         </span>
       </li>
@@ -210,7 +256,9 @@ const activeCategory = computed(() => hoveredCategory.value ?? focusedCategory.v
   font-size: 0.9rem;
   opacity: 0;
   transform: translateX(-8px);
-  transition: opacity 300ms ease, transform 300ms ease;
+  transition:
+    opacity 300ms ease,
+    transform 300ms ease;
 }
 
 .paintings--previewing .paintings__category {

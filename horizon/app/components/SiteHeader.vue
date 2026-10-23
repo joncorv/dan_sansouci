@@ -29,7 +29,7 @@ onBeforeUnmount(() => {
   <UHeader
     v-model:open="menuOpen"
     title="Dan San Souci"
-    to="/paintings"
+    to="/categories"
     class="site-header"
     :ui="{
       container: 'site-header__container',
@@ -54,7 +54,10 @@ onBeforeUnmount(() => {
         :aria-label="dark ? 'Switch to light theme' : 'Switch to dark theme'"
         @click="toggleTheme"
       >
-        <UIcon :name="dark ? 'i-lucide-sun' : 'i-lucide-moon'" class="site-header__theme-icon" />
+        <UIcon
+          :name="dark ? 'i-lucide-sun' : 'i-lucide-moon'"
+          class="site-header__theme-icon"
+        />
       </button>
     </template>
 
@@ -193,7 +196,9 @@ onBeforeUnmount(() => {
     width: 22px;
     height: 1px;
     background: currentColor;
-    transition: transform 300ms ease, opacity 300ms ease;
+    transition:
+      transform 300ms ease,
+      opacity 300ms ease;
   }
 
   .site-header__toggle--open span:first-child {
