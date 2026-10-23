@@ -11,7 +11,7 @@ defineProps<{ mobile?: boolean }>();
     <NuxtLink class="site-navigation__link" to="/categories">
       Paintings
     </NuxtLink>
-    <NuxtLink class="site-navigation__link" to="/about"> About </NuxtLink>
+    <NuxtLink class="site-navigation__link" to="/about"> About Me </NuxtLink>
     <NuxtLink class="site-navigation__link" to="/contact"> Contact </NuxtLink>
   </nav>
 </template>
