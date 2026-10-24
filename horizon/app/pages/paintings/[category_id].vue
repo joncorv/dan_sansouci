@@ -68,6 +68,21 @@ defineShortcuts({
   arrowleft: () => step(-1),
   arrowright: () => step(1),
 });
+
+// warm the cache with the neighbouring full-size images so stepping is instant
+watch(selectedIndex, (index) => {
+  if (index === null) {
+    return;
+  }
+
+  const total = paintings.value.length;
+  for (const offset of [-1, 1]) {
+    const neighbour = paintings.value[(index + offset + total) % total];
+    if (neighbour) {
+      new Image().src = neighbour.src_img;
+    }
+  }
+});
 </script>
 
 <template>
@@ -131,10 +146,17 @@ defineShortcuts({
         >
           <figure class="lightbox__figure">
             <img
+              :key="selected.id"
               :src="selected.src_img"
               :width="selected.src_img_width"
               :height="selected.src_img_height"
               :alt="selected.name"
+              :style="{
+                '--width': selected.src_img_width,
+                '--height': selected.src_img_height,
+                'background-image': `url(${selected.src_thumb})`,
+              }"
+              decoding="async"
               class="lightbox__image"
             >
             <figcaption class="lightbox__caption">
@@ -313,12 +335,17 @@ defineShortcuts({
   margin: 0;
 }
 
+/* sized up front from the API dimensions so the thumbnail placeholder fills
+   the final box while the full image loads */
 .lightbox__image {
   display: block;
-  width: auto;
-  max-width: 100%;
+  width: min(
+    90vw,
+    78vh * var(--width) / var(--height),
+    var(--width) * 1px
+  );
   height: auto;
-  max-height: 78vh;
+  background: center / cover no-repeat;
   object-fit: contain;
 }
 
