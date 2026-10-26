@@ -62,9 +62,9 @@ pub async fn parse_args_create_dummy_data() -> Result<(), Error> {
             "--dummy" => {
                 println!("dummy mode created");
 
-                create_dummy_categories().await?;
-                // create_dummy_paintings().await?;
                 // create_dummy_slideshow().await?;
+                // create_dummy_categories().await?;
+                create_dummy_paintings().await?;
             }
             _ => eprintln!("Unknown argument: {arg}"),
         }
@@ -341,11 +341,9 @@ async fn create_dummy_slideshow() -> Result<(), Error> {
 }
 
 async fn create_dummy_paintings() -> Result<(), Error> {
-    // parse dummy_data json
-    let file = tokio::fs::read_to_string("dummy_data/painting_descriptions.json").await.unwrap();
-    let data: Vec<PaintingDescription> = serde_json::from_str(&file)?;
-
-    // Create Database Connection
+    /////////////////////////////////////////////////////////////
+    ///////////////// CREATE DATABSE POOL ///////////////////////
+    /////////////////////////////////////////////////////////////
     let db_connection_string = std::env::var("DATABASE_URL").unwrap();
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -353,6 +351,36 @@ async fn create_dummy_paintings() -> Result<(), Error> {
         .connect(&db_connection_string)
         .await
         .expect("can't connect to database");
+
+    /////////////////////////////////////////////////////////////
+    ///////////////// S3 PREPARATION ////////////////////////////
+    /////////////////////////////////////////////////////////////
+
+    let bucket_name = std::env::var("S3_BUCKET_NAME")?;
+    let account_id = std::env::var("S3_ACCOUNT_ID")?;
+    let access_key_id = std::env::var("S3_ACCESS_KEY_ID")?;
+    let access_key_secret = std::env::var("S3_ACCESS_KEY_SECRET")?;
+    let config = aws_config::defaults(BehaviorVersion::v2026_01_12())
+        .endpoint_url(format!("https://{}.r2.cloudflarestorage.com", account_id))
+        .credentials_provider(aws_sdk_s3::config::Credentials::new(
+            &access_key_id,
+            &access_key_secret,
+            None, // session token is not used with R2
+            None,
+            "R2",
+        ))
+        .region("auto") // Required by SDK but not used by R2
+        .load()
+        .await;
+    let client = s3::Client::new(&config);
+
+    /////////////////////////////////////////////////////////////
+    ///////////////// JSON DUMMY DATA PREP //////////////////////
+    /////////////////////////////////////////////////////////////
+
+    // parse dummy_data json
+    let file = tokio::fs::read_to_string("dummy_data/painting_descriptions.json").await.unwrap();
+    let data: Vec<PaintingDescription> = serde_json::from_str(&file)?;
 
     for d in &data {
         println!("{:#?}", d.name);
@@ -371,27 +399,6 @@ async fn create_dummy_paintings() -> Result<(), Error> {
         current_image
             .resize_to_fill(dimensions_thumb.0, dimensions_thumb.1, FilterType::CatmullRom)
             .save_with_format(&transcode_path_thumb, image::ImageFormat::Jpeg)?;
-
-        // Create S3 Stuff
-        let bucket_name = std::env::var("S3_BUCKET_NAME")?;
-        let account_id = std::env::var("S3_ACCOUNT_ID")?;
-        let access_key_id = std::env::var("S3_ACCESS_KEY_ID")?;
-        let access_key_secret = std::env::var("S3_ACCESS_KEY_SECRET")?;
-
-        let config = aws_config::defaults(BehaviorVersion::v2026_01_12())
-            .endpoint_url(format!("https://{}.r2.cloudflarestorage.com", account_id))
-            .credentials_provider(aws_sdk_s3::config::Credentials::new(
-                &access_key_id,
-                &access_key_secret,
-                None, // session token is not used with R2
-                None,
-                "R2",
-            ))
-            .region("auto") // Required by SDK but not used by R2
-            .load()
-            .await;
-
-        let client = s3::Client::new(&config);
 
         let cdn_path_hq = format!("paintings/{}.jpg", id);
         let cdn_path_thumb = format!("paintings/{}_thumb.jpg", id);
