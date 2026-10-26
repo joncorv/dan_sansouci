@@ -2,7 +2,9 @@ use anyhow::Error;
 use aws_config::BehaviorVersion;
 use aws_sdk_s3 as s3;
 use aws_sdk_s3::primitives::ByteStream;
+use image::DynamicImage;
 use image::GenericImageView;
+use image::imageops;
 use image::imageops::FilterType;
 use serde::Deserialize;
 use serde::Serialize;
@@ -11,6 +13,8 @@ use std::fmt::Debug;
 use std::path::Path;
 use std::time::Duration;
 use uuid::Uuid;
+use webp::Encoder;
+use webp::WebPMemory;
 
 struct Painting {
     id: Uuid,
@@ -18,11 +22,11 @@ struct Painting {
     name: String,
     medium: String,
     src_thumb: String,
-    src_thumb_height: i32,
     src_thumb_width: i32,
+    src_thumb_height: i32,
     src_img: String,
-    src_img_height: i32,
     src_img_width: i32,
+    src_img_height: i32,
     category_id: i32,
 }
 
@@ -59,8 +63,8 @@ pub async fn parse_args_create_dummy_data() -> Result<(), Error> {
                 println!("dummy mode created");
 
                 create_dummy_categories().await?;
-                create_dummy_paintings().await?;
-                create_dummy_slideshow().await?;
+                // create_dummy_paintings().await?;
+                // create_dummy_slideshow().await?;
             }
             _ => eprintln!("Unknown argument: {arg}"),
         }
@@ -74,23 +78,32 @@ async fn create_dummy_categories() -> Result<(), Error> {
     ///////////////// BASIC DATA PREP ///////////////////////////
     /////////////////////////////////////////////////////////////
     let dummy_dir = std::env::var("DUMMY_DIR")?;
-    let simple_filenames = [
-        "wildlife.jpg",
-        "day-of-the-dead.jpg",
-        "landscapes.jpg",
-        "figurative-portraits.jpg",
-        "illustrations.jpg",
-        "book-art.jpg",
-    ];
+    let simple_filenames =
+        ["wildlife", "day-of-the-dead", "landscapes", "figurative-portraits", "illustrations", "book-art"];
 
     for filename in simple_filenames {
         println!("transcoding: {:#?}", filename);
 
-        let image_path_to_be_transcoded = format!("{dummy_dir}/categories/{filename}");
-        let transcode_result_destination = format!(".temp/{filename}");
-        let current_image = image::ImageReader::open(image_path_to_be_transcoded)?.decode()?;
-        // let dimensions_hq = current_image.dimensions();
-        current_image.save_with_format(transcode_result_destination, image::ImageFormat::Jpeg)?;
+        let image_path_to_be_transcoded = format!("{dummy_dir}/categories/{filename}.jpg");
+        let transcode_result_destination = Path::new(".temp").join(filename).with_extension("webp");
+
+        let mut img = image::ImageReader::open(&image_path_to_be_transcoded)?.decode()?;
+
+        let (w, h) = img.dimensions();
+        let size_factor = get_slideshow_scale_factor((w, h));
+        if size_factor > 1.0 {
+            img = DynamicImage::ImageRgba8(imageops::resize(
+                &img,
+                (w as f64 / size_factor) as u32,
+                (h as f64 / size_factor) as u32,
+                imageops::FilterType::Triangle,
+            ));
+        }
+
+        let encoder: webp::Encoder = webp::Encoder::from_image(&img).unwrap();
+        let webp: WebPMemory = encoder.encode(80f32);
+        tokio::fs::write(&transcode_result_destination, &*webp).await?;
+        println!("wrote webp successfully");
     }
 
     /////////////////////////////////////////////////////////////
@@ -115,8 +128,8 @@ async fn create_dummy_categories() -> Result<(), Error> {
     let client = s3::Client::new(&config);
 
     for filename in simple_filenames {
-        let file_to_upload = format!(".temp/{filename}");
-        let cdn_destination_path = format!("categories/{filename}");
+        let file_to_upload = format!(".temp/{filename}.webp");
+        let cdn_destination_path = format!("categories/{filename}.webp");
         upload_object(&client, &bucket_name, &cdn_destination_path, &file_to_upload).await?;
     }
     /////////////////////////////////////////////////////////////
@@ -211,14 +224,9 @@ async fn create_dummy_categories() -> Result<(), Error> {
 }
 
 async fn create_dummy_slideshow() -> Result<(), Error> {
-    let mut index: i32 = 0;
-    let dummy_dir = std::env::var("DUMMY_DIR")?;
-    let images_paths_to_process = [
-        format!("{dummy_dir}/slideshow/slideshow_001.jpg"),
-        format!("{dummy_dir}/slideshow/slideshow_002.jpg"),
-        format!("{dummy_dir}/slideshow/slideshow_003.jpg"),
-    ];
-    // Create Database Connection
+    /////////////////////////////////////////////////////////////
+    ///////////////// CREATE DATABSE POOL ///////////////////////
+    /////////////////////////////////////////////////////////////
     let db_connection_string = std::env::var("DATABASE_URL").unwrap();
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -227,45 +235,75 @@ async fn create_dummy_slideshow() -> Result<(), Error> {
         .await
         .expect("can't connect to database");
 
-    for image_path in images_paths_to_process {
+    /////////////////////////////////////////////////////////////
+    ///////////////// S3 PREPARATION ////////////////////////////
+    /////////////////////////////////////////////////////////////
+
+    let bucket_name = std::env::var("S3_BUCKET_NAME")?;
+    let account_id = std::env::var("S3_ACCOUNT_ID")?;
+    let access_key_id = std::env::var("S3_ACCESS_KEY_ID")?;
+    let access_key_secret = std::env::var("S3_ACCESS_KEY_SECRET")?;
+    let config = aws_config::defaults(BehaviorVersion::v2026_01_12())
+        .endpoint_url(format!("https://{}.r2.cloudflarestorage.com", account_id))
+        .credentials_provider(aws_sdk_s3::config::Credentials::new(
+            &access_key_id,
+            &access_key_secret,
+            None, // session token is not used with R2
+            None,
+            "R2",
+        ))
+        .region("auto") // Required by SDK but not used by R2
+        .load()
+        .await;
+    let client = s3::Client::new(&config);
+
+    /////////////////////////////////////////////////////////////
+    ///////////////// NEW WEBP PROCESSING ///////////////////////
+    /////////////////////////////////////////////////////////////
+    let dummy_dir = std::env::var("DUMMY_DIR")?;
+    let images_paths_to_process = [
+        format!("{dummy_dir}/slideshow/slideshow_001.jpg"),
+        format!("{dummy_dir}/slideshow/slideshow_002.jpg"),
+        format!("{dummy_dir}/slideshow/slideshow_003.jpg"),
+    ];
+
+    for (index, image_path) in images_paths_to_process.into_iter().enumerate() {
         println!("{:#?}", image_path);
         let id = uuid::Uuid::new_v4();
-        let transcode_path = format!(".temp/{id}.jpg");
-        let current_image = image::ImageReader::open(&image_path)?.decode()?;
-        let dimensions_hq = current_image.dimensions();
-        current_image.save_with_format(&transcode_path, image::ImageFormat::Jpeg)?;
 
-        // Create S3 Stuff
-        let bucket_name = std::env::var("S3_BUCKET_NAME")?;
-        let account_id = std::env::var("S3_ACCOUNT_ID")?;
-        let access_key_id = std::env::var("S3_ACCESS_KEY_ID")?;
-        let access_key_secret = std::env::var("S3_ACCESS_KEY_SECRET")?;
-        let config = aws_config::defaults(BehaviorVersion::v2026_01_12())
-            .endpoint_url(format!("https://{}.r2.cloudflarestorage.com", account_id))
-            .credentials_provider(aws_sdk_s3::config::Credentials::new(
-                &access_key_id,
-                &access_key_secret,
-                None, // session token is not used with R2
-                None,
-                "R2",
-            ))
-            .region("auto") // Required by SDK but not used by R2
-            .load()
-            .await;
-        let client = s3::Client::new(&config);
-        let cdn_destination_path = format!("slideshow/{}.jpg", id);
-        let upload_hq = upload_object(&client, &bucket_name, &cdn_destination_path, &transcode_path).await;
+        let mut img = image::ImageReader::open(&image_path)?.decode()?;
+
+        let (w, h) = img.dimensions();
+        let size_factor = get_slideshow_scale_factor((w, h));
+        if size_factor > 1.0 {
+            img = DynamicImage::ImageRgba8(imageops::resize(
+                &img,
+                (w as f64 / size_factor) as u32,
+                (h as f64 / size_factor) as u32,
+                imageops::FilterType::Triangle,
+            ));
+        }
+
+        let encoder: webp::Encoder = webp::Encoder::from_image(&img).unwrap();
+        let webp: WebPMemory = encoder.encode(80f32);
+        let transcode_path = Path::new(".temp").join(id.to_string()).with_extension("webp");
+        println!("transcode_path: {transcode_path:?}");
+        tokio::fs::write(&transcode_path, &*webp).await?;
+        println!("wront webp successfully");
+
+        /////////////////////////////////////////////////////////////
+        ///////////////// UPLOAD TO CDN /////////////////////////////
+        /////////////////////////////////////////////////////////////
+        let cdn_destination_path = format!("slideshow/{}.webp", id);
+        let upload =
+            upload_object(&client, &bucket_name, &cdn_destination_path, &transcode_path.to_string_lossy()).await;
         let full_html_path = format!("https://cdn.dansansouci.com/{}", cdn_destination_path);
-        if upload_hq.is_ok() {
-            // let's get this sucker up on the database
-            //
-            let slideshow = Slideshow {
-                id,
-                idx: index,
-                src_img: full_html_path,
-                width: dimensions_hq.0 as i32,
-                height: dimensions_hq.1 as i32,
-            };
+        if upload.is_ok() {
+            /////////////////////////////////////////////////////////////
+            ///////////////// SEND INSERT QUERY TO DATABASE /////////////
+            /////////////////////////////////////////////////////////////
+            let slideshow =
+                Slideshow { id, idx: index as i32, src_img: full_html_path, width: w as i32, height: h as i32 };
 
             let db_slideshow = sqlx::query_as!(
                 Slideshow,
@@ -298,7 +336,6 @@ async fn create_dummy_slideshow() -> Result<(), Error> {
                 println!("Slideshow is sent to database")
             };
         }
-        index += 1;
     }
     Ok(())
 }
@@ -375,11 +412,11 @@ async fn create_dummy_paintings() -> Result<(), Error> {
                 name: d.name.to_string(),
                 medium: d.medium.to_string(),
                 src_thumb: full_html_path_thumb,
-                src_thumb_height: dimensions_thumb.0 as i32,
-                src_thumb_width: dimensions_thumb.1 as i32,
+                src_thumb_width: dimensions_thumb.0 as i32,
+                src_thumb_height: dimensions_thumb.1 as i32,
                 src_img: full_html_path_hq,
-                src_img_height: dimensions_hq.0 as i32,
-                src_img_width: dimensions_hq.1 as i32,
+                src_img_width: dimensions_hq.0 as i32,
+                src_img_height: dimensions_hq.1 as i32,
                 category_id: d.category_id,
             };
 
@@ -392,11 +429,11 @@ async fn create_dummy_paintings() -> Result<(), Error> {
             name,
             medium,
             src_thumb,
-            src_thumb_height,
             src_thumb_width,
+            src_thumb_height,
             src_img,
-            src_img_height,
             src_img_width,
+            src_img_height,
             category_id
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -406,11 +443,11 @@ async fn create_dummy_paintings() -> Result<(), Error> {
             name,
             medium,
             src_thumb,
-            src_thumb_height,
             src_thumb_width,
+            src_thumb_height,
             src_img,
-            src_img_height,
             src_img_width,
+            src_img_height,
             category_id
         "#,
                 painting.id,
@@ -418,11 +455,11 @@ async fn create_dummy_paintings() -> Result<(), Error> {
                 painting.name,
                 painting.medium,
                 painting.src_thumb,
-                painting.src_thumb_height,
                 painting.src_thumb_width,
+                painting.src_thumb_height,
                 painting.src_img,
-                painting.src_img_height,
                 painting.src_img_width,
+                painting.src_img_height,
                 painting.category_id,
             )
             .fetch_one(&pool)
@@ -440,7 +477,15 @@ async fn create_dummy_paintings() -> Result<(), Error> {
 async fn upload_object(client: &s3::Client, bucket: &str, key: &str, file_path: &str) -> Result<(), s3::Error> {
     let body = ByteStream::from_path(Path::new(file_path)).await.unwrap();
 
-    client.put_object().bucket(bucket).key(key).body(body).metadata("Content-Type", "image/jpeg").send().await?;
+    client
+        .put_object()
+        .bucket(bucket)
+        .key(key)
+        .body(body)
+        .content_type("image/webp")
+        .cache_control("public, max-age=31536000, immutable")
+        .send()
+        .await?;
 
     println!("Uploaded {} to {}/{}", file_path, bucket, key);
 
@@ -472,5 +517,21 @@ fn create_thumbnail_dimensions(dimensions: (u32, u32)) -> (u32, u32) {
         let new_height = height as f32 / proportion;
         println!("thumb: {}, {}", new_width, new_height);
         (new_width as u32, new_height as u32)
+    }
+}
+
+fn get_slideshow_scale_factor(dimensions: (u32, u32)) -> f64 {
+    println!("original: {}, {}", dimensions.0, dimensions.1);
+    let width = dimensions.0 as f64;
+    let height = dimensions.1 as f64;
+
+    if width < 2000.0 && height < 2000.0 {
+        1.0
+    } else if width >= height {
+        println!("new_scale_factor: {}", width / 2500.0);
+        width / 2500.0
+    } else {
+        println!("new_scale_factor: {}", height / 2500.0);
+        height / 2500.0
     }
 }
