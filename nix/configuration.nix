@@ -4,6 +4,10 @@
   pkgs,
   ...
 }@args:
+let
+  # Enable only from the physical root console during an emergency.
+  emergencySsh = false;
+in
 {
   imports = [
     (modulesPath + "/installer/scan/not-detected.nix")
@@ -35,17 +39,26 @@
   # sops.secrets.S3_API_ENDPOINT = { };
   # sops.secrets.DUMMY_DIR = { };
 
-  # SSH
-  services.openssh.enable = true;
-  services.openssh.settings = {
-    PasswordAuthentication = false;
-    KbdInteractiveAuthentication = false;
-    PermitRootLogin = "prohibit-password";
+  # Emergency OpenSSH fallback.
+  # Native Tailscale SSH handles normal remote access on port 22.
+  services.openssh = {
+    enable = emergencySsh;
+    openFirewall = emergencySsh;
+    ports = [ 2222 ];
+
+    settings = {
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+      PermitRootLogin = "no";
+      AllowUsers = [ "joncorv" ];
+    };
   };
 
   # Tailscale
-  services.tailscale.enable = true;
-  networking.firewall.interfaces."tailscale0".allowedTCPPorts = [ 22 ];
+  services.tailscale = {
+    enable = true;
+    extraSetFlags = [ "--ssh" ];
+  };
 
   nixpkgs.config.allowUnfree = true;
   environment.systemPackages = map lib.lowPrio [
@@ -73,6 +86,16 @@
       "wheel"
       "networkmanager"
     ];
+
+    # Used only by emergency OpenSSH, not native Tailscale SSH.
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFQqcoRpf/3hi+RZtrsx3V/mgp8xOQ+Q+tNfE3PLXEyl"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEYi1z8oaqJLZyUd+jh1TI323ThXJPljm7hGgDBmNFp+"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC//rZ7+MmwQ6Bb1iXRGkVzt+FtRLDR1aDnpFwQkI4hw big-sky"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICo9vjJUdKr1RBtVy4J7wmxfxr+dLI3lwkJzwKvGLeK4 joncorv@SN4622128972"
+    ]
+    ++ (args.extraPublicKeys or [ ]);
+
     # packages = with pkgs; [
     #   tree
     # ];
@@ -80,16 +103,6 @@
 
   # Temp password only used for new-installs
   # users.users.root.initialPassword = "1234";
-
-  # Only allow connections from my verified users.
-  # These are Public Keys and can be commited to version control.
-  users.users.root.openssh.authorizedKeys.keys = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFQqcoRpf/3hi+RZtrsx3V/mgp8xOQ+Q+tNfE3PLXEyl"
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEYi1z8oaqJLZyUd+jh1TI323ThXJPljm7hGgDBmNFp+"
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC//rZ7+MmwQ6Bb1iXRGkVzt+FtRLDR1aDnpFwQkI4hw big-sky"
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICo9vjJUdKr1RBtVy4J7wmxfxr+dLI3lwkJzwKvGLeK4 joncorv@SN4622128972"
-  ]
-  ++ (args.extraPublicKeys or [ ]); # this is used for unit-testing this module and can be removed if not needed
 
   boot.loader.grub = {
     efiSupport = true;
