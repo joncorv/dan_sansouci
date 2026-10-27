@@ -5,6 +5,7 @@ use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 
 mod basic_nav;
+mod datatypes;
 mod dummy_data;
 mod logging;
 
@@ -33,9 +34,7 @@ async fn main() {
         .layer(logging::create_trace_layer())
         .with_state(pool);
 
-    let listener = tokio::net::TcpListener::bind(&tcp_addr_string)
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(&tcp_addr_string).await.unwrap();
 
     tracing::debug!("listening on {}", listener.local_addr().unwrap());
 

@@ -16,19 +16,9 @@ use uuid::Uuid;
 use webp::Encoder;
 use webp::WebPMemory;
 
-struct Painting {
-    id: Uuid,
-    idx: i32,
-    name: String,
-    medium: String,
-    src_thumb: String,
-    src_thumb_width: i32,
-    src_thumb_height: i32,
-    src_img: String,
-    src_img_width: i32,
-    src_img_height: i32,
-    category_id: i32,
-}
+use crate::datatypes::Category;
+use crate::datatypes::Painting;
+use crate::datatypes::Slideshow;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct PaintingDescription {
@@ -39,32 +29,15 @@ struct PaintingDescription {
     category_id: i32,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct Slideshow {
-    id: Uuid,
-    idx: i32,
-    src_img: String,
-    width: i32,
-    height: i32,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Category {
-    category_id: i32,
-    idx: i32,
-    name: String,
-    src_img: String,
-}
-
 pub async fn parse_args_create_dummy_data() -> Result<(), Error> {
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
             "--dummy" => {
                 println!("dummy mode created");
 
-                // create_dummy_slideshow().await?;
+                create_dummy_slideshow().await?;
                 // create_dummy_categories().await?;
-                create_dummy_paintings().await?;
+                // create_dummy_paintings().await?;
             }
             _ => eprintln!("Unknown argument: {arg}"),
         }

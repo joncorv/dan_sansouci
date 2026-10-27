@@ -60,67 +60,100 @@
       },
       {
         "ordinal": 5,
-        "name": "src_thumb",
+        "name": "img_md",
         "type_info": "Text",
         "origin": {
           "Table": {
             "table": "paintings",
-            "name": "src_thumb"
+            "name": "img_md"
           }
         }
       },
       {
         "ordinal": 6,
-        "name": "src_thumb_width",
+        "name": "img_md_width",
         "type_info": "Int4",
         "origin": {
           "Table": {
             "table": "paintings",
-            "name": "src_thumb_width"
+            "name": "img_md_width"
           }
         }
       },
       {
         "ordinal": 7,
-        "name": "src_thumb_height",
+        "name": "img_md_height",
         "type_info": "Int4",
         "origin": {
           "Table": {
             "table": "paintings",
-            "name": "src_thumb_height"
+            "name": "img_md_height"
           }
         }
       },
       {
         "ordinal": 8,
-        "name": "src_img",
+        "name": "img_lg",
         "type_info": "Text",
         "origin": {
           "Table": {
             "table": "paintings",
-            "name": "src_img"
+            "name": "img_lg"
           }
         }
       },
       {
         "ordinal": 9,
-        "name": "src_img_width",
+        "name": "img_lg_width",
         "type_info": "Int4",
         "origin": {
           "Table": {
             "table": "paintings",
-            "name": "src_img_width"
+            "name": "img_lg_width"
           }
         }
       },
       {
         "ordinal": 10,
-        "name": "src_img_height",
+        "name": "img_lg_height",
         "type_info": "Int4",
         "origin": {
           "Table": {
             "table": "paintings",
-            "name": "src_img_height"
+            "name": "img_lg_height"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "img_xl",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "img_xl"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "img_xl_width",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "img_xl_width"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "img_xl_height",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "paintings",
+            "name": "img_xl_height"
           }
         }
       }
@@ -141,7 +174,10 @@
       false,
       false,
       false,
-      false
+      false,
+      true,
+      true,
+      true
     ]
   },
   "hash": "354123d2d1cbe2b562a06cfee7294d3c7e74c2bfbcdbdd8fb787e677b20edd7e"
