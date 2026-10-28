@@ -10,14 +10,17 @@ use serde::Deserialize;
 use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
 use std::fmt::Debug;
+use std::fmt::format;
 use std::path::Path;
 use std::time::Duration;
+use tower_http::classify::GrpcCode::Ok;
 use uuid::Uuid;
 use webp::Encoder;
 use webp::WebPMemory;
 
 use crate::datatypes::Category;
 use crate::datatypes::Painting;
+use crate::datatypes::Size;
 use crate::datatypes::Slideshow;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -48,7 +51,38 @@ pub async fn parse_args_create_dummy_data() -> Result<(), Error> {
 
 async fn create_dummy_categories() -> Result<(), Error> {
     /////////////////////////////////////////////////////////////
-    ///////////////// BASIC DATA PREP ///////////////////////////
+    ///////////////// CONNECT TO DATABASE ///////////////////////
+    /////////////////////////////////////////////////////////////
+    let db_connection_string = std::env::var("DATABASE_URL").unwrap();
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&db_connection_string)
+        .await
+        .expect("can't connect to database");
+    /////////////////////////////////////////////////////////////
+    ///////////////// CREATE S3 Client //////////////////////////
+    /////////////////////////////////////////////////////////////
+    let bucket_name = std::env::var("S3_BUCKET_NAME")?;
+    let account_id = std::env::var("S3_ACCOUNT_ID")?;
+    let access_key_id = std::env::var("S3_ACCESS_KEY_ID")?;
+    let access_key_secret = std::env::var("S3_ACCESS_KEY_SECRET")?;
+    let config = aws_config::defaults(BehaviorVersion::v2026_01_12())
+        .endpoint_url(format!("https://{}.r2.cloudflarestorage.com", account_id))
+        .credentials_provider(aws_sdk_s3::config::Credentials::new(
+            &access_key_id,
+            &access_key_secret,
+            None, // session token is not used with R2
+            None,
+            "R2",
+        ))
+        .region("auto") // Required by SDK but not used by R2
+        .load()
+        .await;
+    let client = s3::Client::new(&config);
+
+    /////////////////////////////////////////////////////////////
+    ///////////////// TRANSCODE IMAGES //////////////////////////
     /////////////////////////////////////////////////////////////
     let dummy_dir = std::env::var("DUMMY_DIR")?;
     let simple_filenames =
@@ -58,11 +92,36 @@ async fn create_dummy_categories() -> Result<(), Error> {
         println!("transcoding: {:#?}", filename);
 
         let image_path_to_be_transcoded = format!("{dummy_dir}/categories/{filename}.jpg");
-        let transcode_result_destination = Path::new(".temp").join(filename).with_extension("webp");
-
         let mut img = image::ImageReader::open(&image_path_to_be_transcoded)?.decode()?;
-
         let (w, h) = img.dimensions();
+
+        let md_simple_filename = format!("md_{filename}");
+        let lg_simple_filename = format!("lg_{filename}");
+        let xl_simple_filename = format!("xl_{filename}");
+        let vt_simple_filename = format!("vt_{filename}");
+
+        let md_scale = if w >= 700 { 700.0 / w as f64 } else { 1.0 };
+        let lg_scale = if w >= 1600 {
+            Some(1600.0 / w as f64)
+        } else if 1600 > w && w > 700 {
+            Some(1.0)
+        } else {
+            None
+        };
+        let xl_scale = if w >= 1600 {
+            Some(1600.0 / w as f64)
+        } else if 1600 > w && w > 700 {
+            Some(1.0)
+        } else {
+            None
+        };
+
+        let md_transcode_result_destination_md = Path::new(".temp").join(md_simple_filename).with_extension("webp");
+        let lg_transcode_result_destination_md = Path::new(".temp").join(lg_simple_filename).with_extension("webp");
+        let xl_transcode_result_destination_md = Path::new(".temp").join(xl_simple_filename).with_extension("webp");
+        let vt_transcode_result_destination_md = Path::new(".temp").join(vt_simple_filename).with_extension("webp");
+
+        // let (w, h) = img.dimensions();
         let size_factor = get_slideshow_scale_factor((w, h));
         if size_factor > 1.0 {
             img = DynamicImage::ImageRgba8(imageops::resize(
@@ -82,23 +141,6 @@ async fn create_dummy_categories() -> Result<(), Error> {
     /////////////////////////////////////////////////////////////
     ///////////////// Upload to S3 //////////////////////////////
     /////////////////////////////////////////////////////////////
-    let bucket_name = std::env::var("S3_BUCKET_NAME")?;
-    let account_id = std::env::var("S3_ACCOUNT_ID")?;
-    let access_key_id = std::env::var("S3_ACCESS_KEY_ID")?;
-    let access_key_secret = std::env::var("S3_ACCESS_KEY_SECRET")?;
-    let config = aws_config::defaults(BehaviorVersion::v2026_01_12())
-        .endpoint_url(format!("https://{}.r2.cloudflarestorage.com", account_id))
-        .credentials_provider(aws_sdk_s3::config::Credentials::new(
-            &access_key_id,
-            &access_key_secret,
-            None, // session token is not used with R2
-            None,
-            "R2",
-        ))
-        .region("auto") // Required by SDK but not used by R2
-        .load()
-        .await;
-    let client = s3::Client::new(&config);
 
     for filename in simple_filenames {
         let file_to_upload = format!(".temp/{filename}.webp");
@@ -497,6 +539,84 @@ fn create_thumbnail_dimensions(dimensions: (u32, u32)) -> (u32, u32) {
         let new_height = height as f32 / proportion;
         println!("thumb: {}, {}", new_width, new_height);
         (new_width as u32, new_height as u32)
+    }
+}
+
+async fn _transcode_and_save_image(
+    simple_filename: &str,
+    target_subdirectory: &str,
+    dynamic_image: &DynamicImage,
+    dummy_dir: &str,
+    size: Size,
+) -> Result<(), Error> {
+    let image_path_to_be_transcoded = format!("{dummy_dir}/categories/{simple_filename}.jpg");
+    // let mut dynamic_image = image::ImageReader::open(&image_path_to_be_transcoded)?.decode()?;
+    let dimensions = dynamic_image.dimensions();
+
+    let size_suffix;
+    let source_dimension_to_test;
+    let target_dimension;
+    let target_simple_filename;
+    let allow_downres;
+
+    match size {
+        Md => {
+            size_suffix = "md";
+            source_dimension_to_test = dimensions.0;
+            target_dimension = 700;
+            target_simple_filename = format!("{size_suffix}_{simple_filename}").as_str();
+        }
+        Lg => {
+            size_suffix = "lg";
+            source_dimension_to_test = dimensions.0;
+            target_dimension = 1_600;
+            target_simple_filename = format!("{size_suffix}_{simple_filename}").as_str();
+        }
+        Xl => {
+            size_suffix = "xl";
+            source_dimension_to_test = dimensions.0.max(dimensions.1);
+            target_dimension = 1_600;
+            target_simple_filename = format!("{size_suffix}_{simple_filename}").as_str();
+        }
+        Vt => {
+            size_suffix = "vt";
+            source_dimension_to_test = dimensions.0.max(dimensions.1);
+            target_dimension = 1_600;
+            target_simple_filename = format!("{size_suffix}_{simple_filename}").as_str();
+        }
+    }
+
+    let transcode_result_destination =
+        Path::new(".temp").join(target_subdirectory).join(target_simple_filename).with_extension("webp");
+
+    // let size_factor = calculate_scale_factor_from_one_dimension(source_dimension_to_test, target_dimension, allow_downres)
+
+    let (w, h) = dynamic_image.dimensions();
+    let size_factor = get_slideshow_scale_factor((w, h));
+    if size_factor < 1.0 {
+        let dynamic_image = DynamicImage::ImageRgba8(imageops::resize(
+            dynamic_image,
+            (w as f64 / size_factor) as u32,
+            (h as f64 / size_factor) as u32,
+            imageops::FilterType::Triangle,
+        ));
+    }
+
+    let encoder: webp::Encoder = webp::Encoder::from_image(&dynamic_image).unwrap();
+    let webp: WebPMemory = encoder.encode(80f32);
+    tokio::fs::write(&transcode_result_destination, &*webp).await?;
+    println!("wrote webp successfully");
+
+    Ok(())
+}
+
+fn calculate_scale_factor_from_one_dimension(source_dimension: u32, target_dimension: u32, allow_downres: bool) -> f64 {
+    // never upres if image is smaller than target
+    if source_dimension <= target_dimension {
+        1.0
+    } else {
+        // if downresing is allowed, return downres scale factor
+        if allow_downres { target_dimension as f64 / source_dimension as f64 } else { 1.0 }
     }
 }
 

@@ -8,6 +8,13 @@ use uuid::Uuid;
 // xl: 3,200 px longest edge
 // vt: 1,200 x 2,400 for mobile
 
+pub enum Size {
+    Md,
+    Lg,
+    Xl,
+    Vt,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Slideshow {
     id: Uuid,
