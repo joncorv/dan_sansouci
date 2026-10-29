@@ -4,12 +4,12 @@ import type { ComponentPublicInstance } from "vue";
 const SLIDE_DURATION = 7000;
 const FADE_DURATION = 1800;
 
-const { data: slideshow } = await useFetch<Slideshow[]>(
-  "https://api.dansansouci.com/slideshow",
-  {
-    default: () => [],
-  },
-);
+const { apiBase } = useRuntimeConfig().public;
+
+const { data: slideshow } = await useFetch<Slideshow[]>("/slideshow", {
+  baseURL: apiBase,
+  default: () => [],
+});
 
 const imageElements: (HTMLImageElement | null)[] = [];
 
@@ -43,9 +43,9 @@ function showNextSlide() {
 
 function startAutoplay() {
   if (
-    autoplayTimer
-    || reducedMotionQuery?.matches
-    || slideshow.value.length < 2
+    autoplayTimer ||
+    reducedMotionQuery?.matches ||
+    slideshow.value.length < 2
   ) {
     return;
   }
@@ -109,15 +109,15 @@ onBeforeUnmount(() => {
     >
       <img
         :ref="setImageElement(index)"
-        :src="slide.src_img"
-        :width="slide.width"
-        :height="slide.height"
+        :src="slide.img_lg"
+        :width="slide.img_lg_width"
+        :height="slide.img_lg_height"
         alt=""
         :fetchpriority="index === 0 ? 'high' : 'low'"
         class="landing__image"
         :class="`landing__image--${(index % 3) + 1}`"
         draggable="false"
-      >
+      />
     </div>
 
     <div class="landing__vignette" aria-hidden="true" />

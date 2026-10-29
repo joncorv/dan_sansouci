@@ -10,6 +10,27 @@ export default defineNuxtConfig({
     "@nuxt/icon",
     "nitro-cloudflare-dev"
   ],
+
+  $development: {
+    runtimeConfig: {
+      public: {
+        apiBase: "http://127.0.0.1:8080",
+      },
+    },
+  },
+
+  $production: {
+    // swr: serve cached render, refresh in background after N seconds
+    // prerender: rendered once at build time and served as a static file
+    routeRules: {
+      "/": { swr: 600 },
+      "/categories": { swr: 600 },
+      "/paintings/**": { swr: 600 },
+      "/about": { prerender: true },
+      "/contact": { swr: 3600 },
+    },
+  },
+
   ssr: true,
 
   devtools: {
@@ -22,15 +43,22 @@ export default defineNuxtConfig({
 
   css: ["~/assets/css/main.css"],
 
+  runtimeConfig: {
+    public: {
+      apiBase: "https://api.dansansouci.com",
+    },
+  },
+
+  experimental: {
+    // inline the payload on first load so html and data come from the same
+    // render; separately cached _payload.json files caused hydration mismatches
+    payloadExtraction: "client",
+  },
+
   compatibilityDate: "2026-06-30",
 
   nitro: {
     preset: "cloudflare_module",
-
-    prerender: {
-      routes: ["/"],
-      crawlLinks: true,
-    },
 
     cloudflare: {
       deployConfig: true,

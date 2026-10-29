@@ -35,12 +35,13 @@ const toaster = {
 <style>
 .page-enter-active,
 .page-leave-active {
-  transition: all 0.1s;
+  transition: opacity 0.1s;
 }
 
+/* no filter/transform here: either one re-anchors position: fixed children
+   (the categories backgrounds) to the page and makes them jump */
 .page-enter-from,
 .page-leave-to {
   opacity: 0;
-  filter: blur(1rem);
 }
 </style>

@@ -1,25 +1,25 @@
 <script setup lang="ts">
 definePageMeta({
-  validate: route => /^\d+$/.test(String(route.params.category_id)),
+  validate: (route) => /^\d+$/.test(String(route.params.category_id)),
 });
 
 const route = useRoute();
 const categoryId = computed(() => Number(route.params.category_id));
+const { apiBase } = useRuntimeConfig().public;
 
 const [{ data: categories }, { data: paintings }] = await Promise.all([
-  useFetch<Category[]>("https://api.dansansouci.com/categories", {
+  useFetch<Category[]>("/categories", {
+    baseURL: apiBase,
     default: () => [],
   }),
-  useFetch<Painting[]>(
-    () => `https://api.dansansouci.com/paintings/${categoryId.value}`,
-    {
-      default: () => [],
-    },
-  ),
+  useFetch<Painting[]>(() => `/paintings/${categoryId.value}`, {
+    baseURL: apiBase,
+    default: () => [],
+  }),
 ]);
 
 const category = computed(() =>
-  categories.value.find(c => c.category_id === categoryId.value),
+  categories.value.find((c) => c.category_id === categoryId.value),
 );
 
 if (!category.value) {
@@ -31,8 +31,8 @@ if (!category.value) {
 }
 
 // TODO: replace with a description column on the categories table
-const description
-  = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+const description =
+  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
 
 useSeoMeta({
   title: () => `${category.value?.name} | Dan San Souci`,
@@ -44,6 +44,27 @@ const selected = computed(() =>
   selectedIndex.value === null
     ? undefined
     : paintings.value[selectedIndex.value],
+);
+
+// img_lg is nullable; fall back to img_md so the lightbox always has a source
+function fullImage(painting: Painting) {
+  if (painting.img_lg && painting.img_lg_width && painting.img_lg_height) {
+    return {
+      src: painting.img_lg,
+      width: painting.img_lg_width,
+      height: painting.img_lg_height,
+    };
+  }
+
+  return {
+    src: painting.img_md,
+    width: painting.img_md_width,
+    height: painting.img_md_height,
+  };
+}
+
+const selectedImage = computed(
+  () => selected.value && fullImage(selected.value),
 );
 
 const isOpen = computed({
@@ -79,7 +100,7 @@ watch(selectedIndex, (index) => {
   for (const offset of [-1, 1]) {
     const neighbour = paintings.value[(index + offset + total) % total];
     if (neighbour) {
-      new Image().src = neighbour.src_img;
+      new Image().src = fullImage(neighbour).src;
     }
   }
 });
@@ -111,13 +132,13 @@ watch(selectedIndex, (index) => {
             @click="selectedIndex = index"
           >
             <img
-              :src="painting.src_thumb"
-              :width="painting.src_thumb_width"
-              :height="painting.src_thumb_height"
+              :src="painting.img_md"
+              :width="painting.img_md_width"
+              :height="painting.img_md_height"
               :alt="painting.name"
               loading="lazy"
               class="gallery__image"
-            >
+            />
           </button>
           <figcaption>
             <p class="gallery__name">
@@ -125,6 +146,9 @@ watch(selectedIndex, (index) => {
             </p>
             <p class="gallery__medium">
               {{ painting.medium }}
+              <template v-if="painting.dimensions">
+                · {{ painting.dimensions }}
+              </template>
             </p>
           </figcaption>
         </figure>
@@ -140,31 +164,34 @@ watch(selectedIndex, (index) => {
     >
       <template #content="{ close }">
         <div
-          v-if="selected"
+          v-if="selected && selectedImage"
           class="lightbox"
           @click.self="close"
         >
           <figure class="lightbox__figure">
             <img
               :key="selected.id"
-              :src="selected.src_img"
-              :width="selected.src_img_width"
-              :height="selected.src_img_height"
+              :src="selectedImage.src"
+              :width="selectedImage.width"
+              :height="selectedImage.height"
               :alt="selected.name"
               :style="{
-                '--width': selected.src_img_width,
-                '--height': selected.src_img_height,
-                'background-image': `url(${selected.src_thumb})`,
+                '--width': selectedImage.width,
+                '--height': selectedImage.height,
+                'background-image': `url(${selected.img_md})`,
               }"
               decoding="async"
               class="lightbox__image"
-            >
+            />
             <figcaption class="lightbox__caption">
               <p class="lightbox__name">
                 {{ selected.name }}
               </p>
               <p class="lightbox__medium">
                 {{ selected.medium }}
+                <template v-if="selected.dimensions">
+                  · {{ selected.dimensions }}
+                </template>
               </p>
             </figcaption>
           </figure>
@@ -339,11 +366,7 @@ watch(selectedIndex, (index) => {
    the final box while the full image loads */
 .lightbox__image {
   display: block;
-  width: min(
-    90vw,
-    78vh * var(--width) / var(--height),
-    var(--width) * 1px
-  );
+  width: min(90vw, 78vh * var(--width) / var(--height), var(--width) * 1px);
   height: auto;
   background: center / cover no-repeat;
   object-fit: contain;

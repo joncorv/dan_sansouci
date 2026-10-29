@@ -48,15 +48,21 @@ onBeforeUnmount(() => {
 
     <template #right>
       <SiteNavigation class="site-header__navigation" />
+      <!-- the server can't know the color mode, so render both icons and let
+           the .dark class on <html> pick one; avoids a hydration mismatch -->
       <button
         type="button"
         class="site-header__theme"
-        :aria-label="dark ? 'Switch to light theme' : 'Switch to dark theme'"
+        aria-label="Toggle dark theme"
         @click="toggleTheme"
       >
         <UIcon
-          :name="dark ? 'i-lucide-sun' : 'i-lucide-moon'"
-          class="site-header__theme-icon"
+          name="i-lucide-sun"
+          class="site-header__theme-icon site-header__theme-icon--sun"
+        />
+        <UIcon
+          name="i-lucide-moon"
+          class="site-header__theme-icon site-header__theme-icon--moon"
         />
       </button>
     </template>
@@ -147,6 +153,15 @@ onBeforeUnmount(() => {
 .site-header__theme-icon {
   width: 16px;
   height: 16px;
+}
+
+.site-header__theme-icon--sun,
+.dark .site-header__theme-icon--moon {
+  display: none;
+}
+
+.dark .site-header__theme-icon--sun {
+  display: inline-block;
 }
 
 .site-header__theme:focus-visible,

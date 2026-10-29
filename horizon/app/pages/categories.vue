@@ -5,12 +5,12 @@ useSeoMeta({
     "Explore original paintings by Dan San Souci, from wildlife and landscapes to portraits, illustrations, and book art.",
 });
 
-const { data: categories } = await useFetch<Category[]>(
-  "https://api.dansansouci.com/categories",
-  {
-    default: () => [],
-  },
-);
+const { apiBase } = useRuntimeConfig().public;
+
+const { data: categories } = await useFetch<Category[]>("/categories", {
+  baseURL: apiBase,
+  default: () => [],
+});
 
 const hoveredCategory = ref<number | null>(null);
 const focusedCategory = ref<number | null>(null);
@@ -41,11 +41,11 @@ const activeCategory = computed(
         }"
       >
         <img
-          :src="category.src_img"
+          :src="category.img_lg"
           alt=""
           loading="lazy"
           class="paintings__background-image"
-        >
+        />
       </div>
     </div>
 
@@ -68,11 +68,11 @@ const activeCategory = computed(
           @blur="focusedCategory = null"
         >
           <img
-            :src="category.src_img"
+            :src="category.img_md"
             alt=""
             :loading="index < 2 ? 'eager' : 'lazy'"
             class="paintings__tile-image"
-          >
+          />
           <span class="paintings__number" aria-hidden="true">
             {{ String(index + 1).padStart(2, "0") }}
           </span>
