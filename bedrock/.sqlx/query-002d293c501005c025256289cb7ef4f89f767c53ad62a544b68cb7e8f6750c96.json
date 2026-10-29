@@ -179,15 +179,15 @@
       false,
       false,
       false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
     ]
   },
   "hash": "002d293c501005c025256289cb7ef4f89f767c53ad62a544b68cb7e8f6750c96"
