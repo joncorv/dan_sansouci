@@ -17,24 +17,24 @@ pub enum Size {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Slideshow {
-    id: Uuid,
-    idx: i32,
+    pub id: Uuid,
+    pub idx: i32,
 
-    img_md: String,
-    img_md_width: i32,
-    img_md_height: i32,
+    pub img_md: String,
+    pub img_md_width: i32,
+    pub img_md_height: i32,
 
-    img_lg: Option<String>,
-    img_lg_width: Option<i32>,
-    img_lg_height: Option<i32>,
+    pub img_lg: Option<String>,
+    pub img_lg_width: Option<i32>,
+    pub img_lg_height: Option<i32>,
 
-    img_xl: Option<String>,
-    img_xl_width: Option<i32>,
-    img_xl_height: Option<i32>,
+    pub img_xl: Option<String>,
+    pub img_xl_width: Option<i32>,
+    pub img_xl_height: Option<i32>,
 
-    img_vt: Option<String>,
-    img_vt_width: Option<i32>,
-    img_vt_height: Option<i32>,
+    pub img_vt: String,
+    pub img_vt_width: i32,
+    pub img_vt_height: i32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -60,29 +60,29 @@ pub struct Category {
     pub img_vt_height: Option<i32>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Painting {
-    id: Uuid,
-    category_id: i32,
-    idx: i32,
-    name: String,
-    medium: String,
-    dimensions: String,
+    pub id: Uuid,
+    pub category_id: i32,
+    pub idx: i32,
+    pub name: String,
+    pub medium: String,
+    pub dimensions: String,
 
-    img_md: String,
-    img_md_width: i32,
-    img_md_height: i32,
+    pub img_md: String,
+    pub img_md_width: i32,
+    pub img_md_height: i32,
 
-    img_lg: Option<String>,
-    img_lg_width: Option<i32>,
-    img_lg_height: Option<i32>,
+    pub img_lg: Option<String>,
+    pub img_lg_width: Option<i32>,
+    pub img_lg_height: Option<i32>,
 
-    img_xl: Option<String>,
-    img_xl_width: Option<i32>,
-    img_xl_height: Option<i32>,
-
-    img_vt: Option<String>,
-    img_vt_width: Option<i32>,
-    img_vt_height: Option<i32>,
+    pub img_xl: Option<String>,
+    pub img_xl_width: Option<i32>,
+    pub img_xl_height: Option<i32>,
+    // pub img_vt: Option<String>,
+    // pub img_vt_width: Option<i32>,
+    // pub img_vt_height: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

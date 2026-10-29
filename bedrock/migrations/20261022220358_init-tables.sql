@@ -17,9 +17,9 @@ CREATE TABLE slideshow (
     img_xl_width INTEGER,
     img_xl_height INTEGER,
 
-    img_vt TEXT,
-    img_vt_width INTEGER,
-    img_vt_height INTEGER
+    img_vt TEXT NOT NULL,
+    img_vt_width INTEGER NOT NULL,
+    img_vt_height INTEGER NOT NULL
 );
 
 CREATE TABLE categories (
