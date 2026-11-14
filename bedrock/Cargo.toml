@@ -15,8 +15,8 @@ sqlx = { version = "0.9", features = [
   "json",
 ] }
 anyhow = "1.0.104"
-axum = { version = "0.8.9", features = ["macros"] }
-cargo-watch = "8.5.3"
+axum = { version = "0.8.9", features = ["macros", "multipart"] }
+# cargo-watch = "8.5.3"
 serde = { version = "1.0.229", features = ["derive"] }
 tokio = { version = "1.53.1", features = ["full"] }
 tower = "0.5.2"

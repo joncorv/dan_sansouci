@@ -85,11 +85,11 @@ pub struct Painting {
     // pub img_vt_height: Option<i32>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct PaintingDescription {
-    path: String,
-    idx: i32,
-    name: String,
-    medium: String,
-    category_id: i32,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// struct PaintingDescription {
+//     pub path: String,
+//     pub idx: i32,
+//     pub name: String,
+//     pub medium: String,
+//     pub category_id: i32,
+// }

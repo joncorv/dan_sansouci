@@ -5,6 +5,7 @@ use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 
 mod basic_nav;
+mod dashboard;
 mod datatypes;
 mod dummy_data;
 mod logging;
