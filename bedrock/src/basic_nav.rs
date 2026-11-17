@@ -11,6 +11,7 @@ use sqlx::Postgres;
 use sqlx::postgres::PgPool;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::datatypes::{Category, Painting, Slideshow};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -18,17 +19,21 @@ struct SlideshowSelection {
     src_img: Option<String>,
 }
 
-pub fn build_routes_basic_nav() -> Router<Pool<Postgres>> {
+pub fn build_routes_basic_nav() -> Router<AppState> {
     Router::new()
         .route("/slideshow", get(get_slideshow_images))
         .route("/categories", get(get_categories))
-        .route("/paintings/{category_id}", get(get_paintins_in_category))
+        .route("/paintings/{category_id}", get(get_paintings_in_category))
 }
 
 #[axum::debug_handler]
-pub async fn get_paintins_in_category(State(pool): State<PgPool>, Path(category_id): Path<i32>) -> impl IntoResponse {
+pub async fn get_paintings_in_category(
+    State(app_state): State<AppState>,
+    Path(category_id): Path<i32>,
+) -> impl IntoResponse {
+    println!("getting some paintings here");
     match sqlx::query_as!(Painting, "SELECT * FROM paintings WHERE category_id = $1", category_id)
-        .fetch_all(&pool)
+        .fetch_all(&app_state.pool)
         .await
     {
         Ok(mut data) => {
@@ -52,8 +57,9 @@ pub async fn get_paintins_in_category(State(pool): State<PgPool>, Path(category_
 }
 
 #[axum::debug_handler]
-pub async fn get_categories(State(pool): State<PgPool>) -> impl IntoResponse {
-    match sqlx::query_as!(Category, "SELECT * FROM categories",).fetch_all(&pool).await {
+pub async fn get_categories(State(app_state): State<AppState>) -> impl IntoResponse {
+    println!("getting some categories here");
+    match sqlx::query_as!(Category, "SELECT * FROM categories",).fetch_all(&app_state.pool).await {
         Ok(mut data) => {
             let url_prefix = "https://cdn.dansansouci.com/";
             for category in data.iter_mut() {
@@ -79,8 +85,8 @@ pub async fn get_categories(State(pool): State<PgPool>) -> impl IntoResponse {
 }
 
 #[axum::debug_handler]
-pub async fn get_slideshow_images(State(pool): State<PgPool>) -> impl IntoResponse {
-    match sqlx::query_as!(Slideshow, "SELECT * FROM slideshow",).fetch_all(&pool).await {
+pub async fn get_slideshow_images(State(app_state): State<AppState>) -> impl IntoResponse {
+    match sqlx::query_as!(Slideshow, "SELECT * FROM slideshow",).fetch_all(&app_state.pool).await {
         Ok(mut data) => {
             let url_prefix = "https://cdn.dansansouci.com/";
             for slideshow in data.iter_mut() {

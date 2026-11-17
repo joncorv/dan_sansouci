@@ -73,7 +73,7 @@ async fn create_dummy_paintings() -> Result<(), Error> {
     let access_key_secret = std::env::var("S3_ACCESS_KEY_SECRET")?;
     let config = aws_config::defaults(BehaviorVersion::v2026_01_12())
         .endpoint_url(format!("https://{}.r2.cloudflarestorage.com", account_id))
-        .credentials_provider(aws_sdk_s3::config::Credentials::new(
+        .credentials_provider(s3::config::Credentials::new(
             &access_key_id,
             &access_key_secret,
             None, // session token is not used with R2
