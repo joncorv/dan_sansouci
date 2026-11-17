@@ -1,0 +1,31 @@
+info:
+  name: Category
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{base_url}}/create-category"
+  body:
+    type: multipart-form
+    data:
+      - name: name
+        type: text
+        value: '"Some New Category"'
+      - name: img
+        type: file
+        value:
+          - C:\Users\joncorv\Desktop\blank-bg.png
+        contentType: image/png
+      - name: balls
+        type: text
+        value: shit
+        disabled: true
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

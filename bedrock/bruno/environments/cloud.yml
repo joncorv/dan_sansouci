@@ -1,0 +1,5 @@
+name: cloud
+variables:
+  - name: base_url
+    value: https://api.dansansouci.com
+    description: ""
