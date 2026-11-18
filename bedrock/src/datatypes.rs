@@ -39,7 +39,7 @@ pub struct Slideshow {
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Category {
-    pub category_id: i32,
+    pub category_id: Uuid,
     pub idx: i32,
     pub name: String,
 

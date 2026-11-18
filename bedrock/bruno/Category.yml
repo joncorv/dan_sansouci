@@ -17,6 +17,7 @@ http:
         value:
           - C:\Users\joncorv\Desktop\blank-bg.png
         contentType: image/png
+        disabled: true
       - name: balls
         type: text
         value: shit

@@ -23,7 +23,7 @@ CREATE TABLE slideshow (
 );
 
 CREATE TABLE categories (
-    category_id INTEGER PRIMARY KEY UNIQUE,
+    category_id UUID PRIMARY KEY,
     idx INTEGER UNIQUE NOT NULL,
     name TEXT NOT NULL,
 
@@ -46,7 +46,7 @@ CREATE TABLE categories (
 
 CREATE TABLE paintings (
     id UUID PRIMARY KEY,
-    category_id INTEGER NOT NULL REFERENCES categories(category_id) ON DELETE CASCADE,
+    category_id UUID NOT NULL REFERENCES categories(category_id) ON DELETE CASCADE,
     idx INTEGER NOT NULL,
     name TEXT NOT NULL,
     medium TEXT NOT NULL,

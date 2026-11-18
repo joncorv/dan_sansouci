@@ -1,17 +1,18 @@
 #![allow(dead_code, unused_imports)]
 use aws_sdk_s3 as s3;
 use axum::Router;
+use axum::extract::DefaultBodyLimit;
 use sqlx::Pool;
 use sqlx::Postgres;
 use sqlx::postgres::PgPoolOptions;
 use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 
-mod basic_nav;
+// mod basic_nav;
 mod cloud_storage;
 mod dashboard;
 mod datatypes;
-mod dummy_data;
+// mod dummy_data;
 mod logging;
 
 #[derive(Debug, Clone)]
@@ -23,7 +24,7 @@ pub struct AppState {
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
-    dummy_data::parse_args_create_dummy_data().await.unwrap();
+    // dummy_data::parse_args_create_dummy_data().await.unwrap();
 
     let db_connection_string = std::env::var("DATABASE_URL").unwrap();
     let tcp_addr_string = std::env::var("TCP_ADDR").unwrap();
@@ -44,10 +45,11 @@ async fn main() {
     let app_state = AppState { pool, s3_client };
 
     let app = Router::new()
-        .merge(basic_nav::build_routes_basic_nav())
+        // .merge(basic_nav::build_routes_basic_nav())
         .merge(dashboard::build_routes_dashboard())
         .layer(cors)
         .layer(logging::create_trace_layer())
+        .layer(DefaultBodyLimit::max(10_000_000))
         .with_state(app_state);
 
     let listener = tokio::net::TcpListener::bind(&tcp_addr_string).await.unwrap();
