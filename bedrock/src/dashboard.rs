@@ -55,15 +55,19 @@ pub async fn create_category(
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<DummyResponse>), (StatusCode, String)> {
     let mut category = Category::default();
-    category.category_id = uuid::Uuid::new_v4();
+    let id = uuid::Uuid::new_v4();
+    category.category_id = id.clone();
+    let mut category_name = "".to_string();
 
     while let Some(mut field) = multipart.next_field().await.unwrap_or_default() {
         let field_name = field.name().unwrap_or_default().to_string();
 
         match field_name.as_str() {
             "name" => {
-                category.name = field.text().await.unwrap_or_default();
-                println!("we have a name: {}", category.name);
+                {
+                    category_name = field.text().await.unwrap_or_default();
+                    // println!("we have a name: {}", category.name);
+                }
             }
             "img" => {
                 let bytes = field.bytes().await;
@@ -93,20 +97,16 @@ pub async fn create_category(
                                 let vt_resize_is_needed = h > 2400;
 
                                 // Simple Filname for all sizes
-                                let md_simple_filename = format!("md_{}", category.category_id);
-                                let lg_simple_filename = format!("lg_{}", category.category_id);
-                                let xl_simple_filename = format!("xl_{}", category.category_id);
-                                let vt_simple_filename = format!("vt_{}", category.category_id);
+                                let md_simple_filename = format!("md_{}", id);
+                                let lg_simple_filename = format!("lg_{}", id);
+                                let xl_simple_filename = format!("xl_{}", id);
+                                let vt_simple_filename = format!("vt_{}", id);
 
                                 // Transcode Result Destination for all sizes
-                                let md_transcode_result_destination =
-                                    dummy_dir.path().join(&md_simple_filename).with_extension("webp");
-                                let lg_transcode_result_destination =
-                                    dummy_dir.path().join(&lg_simple_filename).with_extension("webp");
-                                let xl_transcode_result_destination =
-                                    dummy_dir.path().join(&xl_simple_filename).with_extension("webp");
-                                let vt_transcode_result_destination =
-                                    dummy_dir.path().join(&vt_simple_filename).with_extension("webp");
+                                let md_transcode_result_destination = dummy_dir.path().join(&md_simple_filename).with_extension("webp");
+                                let lg_transcode_result_destination = dummy_dir.path().join(&lg_simple_filename).with_extension("webp");
+                                let xl_transcode_result_destination = dummy_dir.path().join(&xl_simple_filename).with_extension("webp");
+                                let vt_transcode_result_destination = dummy_dir.path().join(&vt_simple_filename).with_extension("webp");
 
                                 // S3 Bucket Target Path
                                 let s3_prefix = "categories";
@@ -115,186 +115,87 @@ pub async fn create_category(
                                 let xl_cdn_destination_path = format!("{s3_prefix}/{xl_simple_filename}.webp");
                                 let vt_cdn_destination_path = format!("{s3_prefix}/{vt_simple_filename}.webp");
 
-                                // Calculate all size factors if required
-                                // let (
-                                //     md_final_resolution,
-                                //     lg_final_resolution,
-                                //     xl_final_resolution,
-                                //     vt_final_resolution,
-                                // );
-
-                                // let md_img = if md_is_needed {
-                                //     if md_resize_is_needed {
-                                //         let resize_factor = 700.0 / w as f64;
-                                //
-                                //         md_final_resolution =
-                                //             ((w as f64 * resize_factor) as u32, (h as f64 * resize_factor) as u32);
-                                //         DynamicImage::ImageRgba8(imageops::resize(
-                                //             &img,
-                                //             md_final_resolution.0,
-                                //             md_final_resolution.1,
-                                //             imageops::FilterType::Triangle,
-                                //         ))
-                                //     } else {
-                                //         md_final_resolution = (w, h);
-                                //         img.clone()
-                                //     }
-                                // } else {
-                                //     md_final_resolution = (w, h);
-                                //     img.clone()
-                                // };
-
-                                pub fn resize_image(
-                                    img: DynamicImage,
-                                    category: &mut Category,
-                                    size: Size,
-                                    is_needed: bool,
-                                    w: u32,
-                                    h: u32,
-                                ) -> anyhow::Result<Option<DynamicImage>, anyhow::Error>
-                                {
-                                    let new_img = if is_needed {
-                                        if is_needed {
-                                            let target_res = match size {
-                                                Md => 700.0,
-                                                Lg => 1600.0,
-                                                Xl => 2500.0,
-                                                Vt => 2400.0,
-                                            };
-
-                                            let resize_factor = target_res / w as f64;
-
-                                            let (new_w, new_h) =
-                                                ((w as f64 * resize_factor) as i32, (h as f64 * resize_factor) as i32);
-
-                                            match size {
-                                                Md => {
-                                                    category.img_md_width = new_w;
-                                                    category.img_md_height = new_h;
-                                                }
-                                                Lg => {
-                                                    category.img_lg_width = Some(new_w);
-                                                    category.img_lg_height = Some(new_h);
-                                                }
-                                                Xl => {
-                                                    category.img_xl_width = Some(new_w);
-                                                    category.img_xl_height = Some(new_h);
-                                                }
-                                                Vt => println!("nothing"),
-                                            }
-
-                                            DynamicImage::ImageRgba8(imageops::resize(
-                                                &img,
-                                                new_w as u32,
-                                                new_h as u32,
-                                                imageops::FilterType::Triangle,
-                                            ))
-                                        } else {
-                                            match size {
-                                                Md => {
-                                                    category.img_md_width = w as i32;
-                                                    category.img_md_height = h as i32;
-                                                }
-                                                // Lg => {
-                                                //     category.img_lg_width = Some(new_w);
-                                                //     category.img_lg_height = Some(new_h);
-                                                // }
-                                                // Xl => {
-                                                //     category.img_xl_width = Some(new_w);
-                                                //     category.img_xl_height = Some(new_h);
-                                                // }
-                                                _ => {
-                                                    return Ok(None);
-                                                }
-                                            }
-                                            (category.img_md_width, category.img_md_height) = (w as i32, h as i32);
-                                            img.clone()
-                                        }
-                                    } else {
-                                        (category.img_md_width, category.img_md_height) = (w as i32, h as i32);
-                                        img.clone()
-                                    };
-
-                                    Ok(new_img)
+                                // Set category data
+                                category.img_md = md_cdn_destination_path.clone();
+                                category.img_vt = Some(vt_cdn_destination_path.clone());
+                                if lg_is_needed {
+                                    category.img_lg = Some(lg_cdn_destination_path.clone());
+                                }
+                                if xl_is_needed {
+                                    category.img_xl = Some(xl_cdn_destination_path.clone());
                                 }
 
-                                let lg_img = if lg_is_needed {
-                                    if lg_resize_is_needed {
-                                        let resize_factor = 1600.0 / w as f64;
+                                println!("starting resize");
+                                let md_img = resize_image(&img, &mut category, Md, md_is_needed, md_resize_is_needed, w, h).unwrap();
+                                let lg_img = resize_image(&img, &mut category, Lg, lg_is_needed, lg_resize_is_needed, w, h).unwrap();
+                                let xl_img = resize_image(&img, &mut category, Xl, xl_is_needed, xl_resize_is_needed, w, h).unwrap();
+                                let vt_img = resize_image(&img, &mut category, Vt, vt_is_needed, vt_resize_is_needed, w, h).unwrap();
 
-                                        lg_final_resolution =
-                                            ((w as f64 * resize_factor) as u32, (h as f64 * resize_factor) as u32);
-
-                                        DynamicImage::ImageRgba8(imageops::resize(
-                                            &img,
-                                            lg_final_resolution.0,
-                                            lg_final_resolution.1,
-                                            imageops::FilterType::Triangle,
-                                        ))
-                                    } else {
-                                        lg_final_resolution = (w, h);
-                                        img.clone()
-                                    }
-                                } else {
-                                    lg_final_resolution = (w, h);
-                                    img.clone()
-                                };
-
-                                let xl_img = if xl_is_needed {
-                                    if xl_resize_is_needed {
-                                        let resize_factor = 2500.0 / w as f64;
-                                        xl_final_resolution =
-                                            ((w as f64 * resize_factor) as u32, (h as f64 * resize_factor) as u32);
-                                        DynamicImage::ImageRgba8(imageops::resize(
-                                            &img,
-                                            xl_final_resolution.0,
-                                            xl_final_resolution.1,
-                                            imageops::FilterType::Triangle,
-                                        ))
-                                    } else {
-                                        xl_final_resolution = (w, h);
-                                        img.clone()
-                                    }
-                                } else {
-                                    xl_final_resolution = (w, h);
-                                    img.clone()
-                                };
-
-                                // remember that the new aspect ratio is 1:2
-                                let vt_img =
-                                    if vt_is_needed {
-                                        let new_img = &img;
-
-                                        if vt_resize_is_needed {
-                                            let resize_factor = 2400.0 / h as f64;
-
-                                            let resized_w = (w as f64 * resize_factor) as u32;
-                                            let resized_h = (h as f64 * resize_factor) as u32;
-                                            let x_crop = (resized_w / 2) - (resized_h / 4);
-
-                                            vt_final_resolution = (resized_h / 2, resized_h);
-
-                                            new_img
-                                                .resize(resized_w, resized_h, imageops::FilterType::Triangle)
-                                                .crop_imm(x_crop, 0, resized_h / 2, resized_h)
-                                        } else {
-                                            vt_final_resolution = (h / 2, h);
-                                            let x_crop = (w / 2) - (h / 4);
-                                            new_img.crop_imm(x_crop, 0, h / 2, h)
-                                        }
-                                    } else {
-                                        vt_final_resolution = (h / 2, h);
-                                        img.clone()
-                                    };
-
-                                // let (_a, _b, _c, _d) = tokio::join!(
-                                //     transcode_image(md_is_needed, &md_img, &md_transcode_result_destination),
-                                //     transcode_image(lg_is_needed, &lg_img, &lg_transcode_result_destination),
-                                //     transcode_image(xl_is_needed, &xl_img, &xl_transcode_result_destination),
-                                //     transcode_image(vt_is_needed, &vt_img, &vt_transcode_result_destination),
-                                // );
+                                println!("starting transcode");
+                                let (_a, _b, _c, _d) = tokio::join!(
+                                    transcode_image(md_is_needed, &md_img, &md_transcode_result_destination),
+                                    transcode_image(lg_is_needed, &lg_img, &lg_transcode_result_destination),
+                                    transcode_image(xl_is_needed, &xl_img, &xl_transcode_result_destination),
+                                    transcode_image(vt_is_needed, &vt_img, &vt_transcode_result_destination),
+                                );
 
                                 println!("wrote webp successfully");
+                                // use tokio::task::spawn_blocking;
+
+                                // let (a, b, c, d) = tokio::try_join!(
+                                //     spawn_blocking(resize_image(
+                                //         &img,
+                                //         &mut category,
+                                //         Md,
+                                //         md_is_needed,
+                                //         md_resize_is_needed,
+                                //         w,
+                                //         h
+                                //     )),
+                                //     spawn_blocking(resize_image(
+                                //         &img,
+                                //         &mut category,
+                                //         Lg,
+                                //         lg_is_needed,
+                                //         lg_resize_is_needed,
+                                //         w,
+                                //         h
+                                //     )),
+                                //     spawn_blocking(resize_image(
+                                //         &img,
+                                //         &mut category,
+                                //         Xl,
+                                //         xl_is_needed,
+                                //         xl_resize_is_needed,
+                                //         w,
+                                //         h
+                                //     )),
+                                //     spawn_blocking(resize_image(
+                                //         &img,
+                                //         &mut category,
+                                //         Vt,
+                                //         vt_is_needed,
+                                //         vt_resize_is_needed,
+                                //         w,
+                                //         h
+                                //     )),
+                                // )
+                                // .unwrap();
+
+                                // tokio::task::spawn_blocking(move || {
+                                //     let _ =
+                                //         resize_image(&img, &mut category, Md, md_is_needed, md_resize_is_needed, w, h);
+                                //     let _ =
+                                //         resize_image(&img, &mut category, Lg, lg_is_needed, lg_resize_is_needed, w, h);
+                                //     let _ =
+                                //         resize_image(&img, &mut category, Xl, xl_is_needed, xl_resize_is_needed, w, h);
+                                //     let _ =
+                                //         resize_image(&img, &mut category, Vt, vt_is_needed, vt_resize_is_needed, w, h);
+                                // })
+                                // .await
+                                // .unwrap();
+
+                                // dbg!(&category);
                             }
                             Err(e) => {
                                 //
@@ -312,6 +213,9 @@ pub async fn create_category(
             }
         }
     }
+
+    category.name = category_name;
+    dbg!(category);
 
     let dummy_response = DummyResponse { text: "dummy_response".to_string() };
     Ok((StatusCode::OK, Json(dummy_response)))
@@ -340,13 +244,93 @@ pub async fn create_category(
     // }
 }
 
+pub fn resize_image(
+    img: &DynamicImage,
+    category: &mut Category,
+    size: Size,
+    is_needed: bool,
+    resize_is_needed: bool,
+    w: u32,
+    h: u32,
+) -> anyhow::Result<Option<DynamicImage>, anyhow::Error> {
+    let new_img = if is_needed {
+        if resize_is_needed {
+            let resize_factor = match size {
+                Md => 700.0 / w as f64,
+                Lg => 1600.0 / w as f64,
+                Xl => 2500.0 / w as f64,
+                Vt => 2400.0 / h as f64,
+            };
+
+            let (new_w, new_h) = ((w as f64 * resize_factor) as i32, (h as f64 * resize_factor) as i32);
+
+            match size {
+                Md => {
+                    category.img_md_width = new_w;
+                    category.img_md_height = new_h;
+                }
+                Lg => {
+                    category.img_lg_width = Some(new_w);
+                    category.img_lg_height = Some(new_h);
+                }
+                Xl => {
+                    category.img_xl_width = Some(new_w);
+                    category.img_xl_height = Some(new_h);
+                }
+                Vt => {
+                    category.img_vt_width = Some(new_h / 2);
+                    category.img_vt_height = Some(new_h);
+                }
+            }
+
+            match size {
+                Md | Lg | Xl => DynamicImage::ImageRgba8(imageops::resize(img, new_w as u32, new_h as u32, imageops::FilterType::Triangle)),
+                _ => {
+                    let new_w = new_w as u32;
+                    let new_h = new_h as u32;
+                    let x_crop = (new_w / 2) - (new_h / 4);
+
+                    img.resize(new_w, new_h, imageops::FilterType::Triangle).crop_imm(x_crop, 0, new_h / 2, new_h)
+                }
+            }
+        } else {
+            // this particular size is needed, but resize is NOT needed
+            match size {
+                Md => {
+                    category.img_md_width = w as i32;
+                    category.img_md_height = h as i32;
+                    img.clone()
+                }
+                Lg => {
+                    category.img_lg_width = Some(w as i32);
+                    category.img_lg_height = Some(h as i32);
+                    img.clone()
+                }
+                Xl => {
+                    category.img_xl_width = Some(w as i32);
+                    category.img_xl_height = Some(h as i32);
+                    img.clone()
+                }
+                _ => {
+                    let x_crop = (w / 2) - (h / 4);
+                    img.crop_imm(x_crop, 0, h / 2, h)
+                }
+            }
+        }
+    } else {
+        return Ok(None);
+    };
+
+    Ok(Some(new_img))
+}
+
 pub async fn transcode_image(
     is_needed: bool,
-    sized_img: &DynamicImage,
+    sized_img: &Option<DynamicImage>,
     transcode_result_destination: &PathBuf,
 ) -> Result<(), anyhow::Error> {
-    if is_needed {
-        let md_encoder: webp::Encoder = webp::Encoder::from_image(sized_img).unwrap();
+    if is_needed && let Some(img) = sized_img {
+        let md_encoder: webp::Encoder = webp::Encoder::from_image(img).unwrap();
         let md_webp: WebPMemory = md_encoder.encode(80f32);
         // tokio::fs::write(transcode_result_destination, &*md_webp).await.unwrap();
         std::fs::write(transcode_result_destination, &*md_webp)?;

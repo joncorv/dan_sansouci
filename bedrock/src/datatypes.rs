@@ -37,7 +37,7 @@ pub struct Slideshow {
     pub img_vt_height: i32,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct Category {
     pub category_id: Uuid,
     pub idx: i32,
