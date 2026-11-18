@@ -8,6 +8,7 @@ use uuid::Uuid;
 // xl: 2500 px longest edge
 // vt: 1200 x 2,400 for mobile
 
+#[derive(Debug)]
 pub enum Size {
     Md,
     Lg,

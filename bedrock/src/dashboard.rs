@@ -1,5 +1,4 @@
 #![allow(unused_imports)]
-
 use axum::Json;
 use axum::Router;
 use axum::extract::Multipart;
@@ -13,17 +12,19 @@ use image::DynamicImage;
 use image::ImageError;
 use image::imageops;
 use image::imageops::FilterType;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::Pool;
 use sqlx::Postgres;
 use sqlx::postgres::PgPool;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use uuid::Uuid;
-
 use webp::Encoder;
 use webp::WebPMemory;
 
-use std::path::Path as FilePath;
-use std::path::PathBuf;
+use std::path::Path as StdPath;
 
 use crate::AppState;
 use crate::datatypes::Size::{Lg, Md, Vt, Xl};
@@ -51,23 +52,22 @@ pub struct DummyResponse {
 
 #[axum::debug_handler]
 pub async fn create_category(
-    State(app_state): State<AppState>,
+    State(_app_state): State<AppState>,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<DummyResponse>), (StatusCode, String)> {
-    let mut category = Category::default();
+    let category = Arc::new(Mutex::new(Category::default()));
     let id = uuid::Uuid::new_v4();
-    category.category_id = id.clone();
-    let mut category_name = "".to_string();
 
-    while let Some(mut field) = multipart.next_field().await.unwrap_or_default() {
+    let mut img: Option<DynamicImage> = None;
+
+    while let Some(field) = multipart.next_field().await.unwrap_or_default() {
         let field_name = field.name().unwrap_or_default().to_string();
 
         match field_name.as_str() {
             "name" => {
-                {
-                    category_name = field.text().await.unwrap_or_default();
-                    // println!("we have a name: {}", category.name);
-                }
+                let mut lock = category.lock().await;
+                lock.name = field.text().await.unwrap_or_default();
+                println!("we have a name: {}", lock.name);
             }
             "img" => {
                 let bytes = field.bytes().await;
@@ -76,126 +76,10 @@ pub async fn create_category(
                 match bytes {
                     Ok(bytes) => {
                         match image::load_from_memory(&bytes) {
-                            /////////////////////////////////////////////////////////////
-                            ///////////////// TRANSCODE IMAGES //////////////////////////
-                            /////////////////////////////////////////////////////////////
-                            Ok(img) => {
+                            Ok(img_good) => {
                                 println!("hey this image works");
-                                let dummy_dir = tempdir::TempDir::new("category").unwrap();
-                                let (w, h) = (img.width(), img.height());
 
-                                // will we transcode each size?
-                                let md_is_needed = true;
-                                let lg_is_needed = w > 700;
-                                let xl_is_needed = w > 1600;
-                                let vt_is_needed = true;
-
-                                // will we resize each size?
-                                let md_resize_is_needed = w > 700;
-                                let lg_resize_is_needed = lg_is_needed && w > 1600;
-                                let xl_resize_is_needed = xl_is_needed && w > 2500;
-                                let vt_resize_is_needed = h > 2400;
-
-                                // Simple Filname for all sizes
-                                let md_simple_filename = format!("md_{}", id);
-                                let lg_simple_filename = format!("lg_{}", id);
-                                let xl_simple_filename = format!("xl_{}", id);
-                                let vt_simple_filename = format!("vt_{}", id);
-
-                                // Transcode Result Destination for all sizes
-                                let md_transcode_result_destination = dummy_dir.path().join(&md_simple_filename).with_extension("webp");
-                                let lg_transcode_result_destination = dummy_dir.path().join(&lg_simple_filename).with_extension("webp");
-                                let xl_transcode_result_destination = dummy_dir.path().join(&xl_simple_filename).with_extension("webp");
-                                let vt_transcode_result_destination = dummy_dir.path().join(&vt_simple_filename).with_extension("webp");
-
-                                // S3 Bucket Target Path
-                                let s3_prefix = "categories";
-                                let md_cdn_destination_path = format!("{s3_prefix}/{md_simple_filename}.webp");
-                                let lg_cdn_destination_path = format!("{s3_prefix}/{lg_simple_filename}.webp");
-                                let xl_cdn_destination_path = format!("{s3_prefix}/{xl_simple_filename}.webp");
-                                let vt_cdn_destination_path = format!("{s3_prefix}/{vt_simple_filename}.webp");
-
-                                // Set category data
-                                category.img_md = md_cdn_destination_path.clone();
-                                category.img_vt = Some(vt_cdn_destination_path.clone());
-                                if lg_is_needed {
-                                    category.img_lg = Some(lg_cdn_destination_path.clone());
-                                }
-                                if xl_is_needed {
-                                    category.img_xl = Some(xl_cdn_destination_path.clone());
-                                }
-
-                                println!("starting resize");
-                                let md_img = resize_image(&img, &mut category, Md, md_is_needed, md_resize_is_needed, w, h).unwrap();
-                                let lg_img = resize_image(&img, &mut category, Lg, lg_is_needed, lg_resize_is_needed, w, h).unwrap();
-                                let xl_img = resize_image(&img, &mut category, Xl, xl_is_needed, xl_resize_is_needed, w, h).unwrap();
-                                let vt_img = resize_image(&img, &mut category, Vt, vt_is_needed, vt_resize_is_needed, w, h).unwrap();
-
-                                println!("starting transcode");
-                                let (_a, _b, _c, _d) = tokio::join!(
-                                    transcode_image(md_is_needed, &md_img, &md_transcode_result_destination),
-                                    transcode_image(lg_is_needed, &lg_img, &lg_transcode_result_destination),
-                                    transcode_image(xl_is_needed, &xl_img, &xl_transcode_result_destination),
-                                    transcode_image(vt_is_needed, &vt_img, &vt_transcode_result_destination),
-                                );
-
-                                println!("wrote webp successfully");
-                                // use tokio::task::spawn_blocking;
-
-                                // let (a, b, c, d) = tokio::try_join!(
-                                //     spawn_blocking(resize_image(
-                                //         &img,
-                                //         &mut category,
-                                //         Md,
-                                //         md_is_needed,
-                                //         md_resize_is_needed,
-                                //         w,
-                                //         h
-                                //     )),
-                                //     spawn_blocking(resize_image(
-                                //         &img,
-                                //         &mut category,
-                                //         Lg,
-                                //         lg_is_needed,
-                                //         lg_resize_is_needed,
-                                //         w,
-                                //         h
-                                //     )),
-                                //     spawn_blocking(resize_image(
-                                //         &img,
-                                //         &mut category,
-                                //         Xl,
-                                //         xl_is_needed,
-                                //         xl_resize_is_needed,
-                                //         w,
-                                //         h
-                                //     )),
-                                //     spawn_blocking(resize_image(
-                                //         &img,
-                                //         &mut category,
-                                //         Vt,
-                                //         vt_is_needed,
-                                //         vt_resize_is_needed,
-                                //         w,
-                                //         h
-                                //     )),
-                                // )
-                                // .unwrap();
-
-                                // tokio::task::spawn_blocking(move || {
-                                //     let _ =
-                                //         resize_image(&img, &mut category, Md, md_is_needed, md_resize_is_needed, w, h);
-                                //     let _ =
-                                //         resize_image(&img, &mut category, Lg, lg_is_needed, lg_resize_is_needed, w, h);
-                                //     let _ =
-                                //         resize_image(&img, &mut category, Xl, xl_is_needed, xl_resize_is_needed, w, h);
-                                //     let _ =
-                                //         resize_image(&img, &mut category, Vt, vt_is_needed, vt_resize_is_needed, w, h);
-                                // })
-                                // .await
-                                // .unwrap();
-
-                                // dbg!(&category);
+                                img = Some(img_good);
                             }
                             Err(e) => {
                                 //
@@ -214,45 +98,174 @@ pub async fn create_category(
         }
     }
 
-    category.name = category_name;
-    dbg!(category);
+    if let Some(img) = img {
+        let dummy_dir = tempdir::TempDir::new("category").unwrap();
+        let (w, h) = (img.width(), img.height());
+
+        // will we transcode each size?
+        let md_is_needed = true;
+        let lg_is_needed = w > 700;
+        let xl_is_needed = w > 1600;
+        let vt_is_needed = true;
+
+        // will we resize each size?
+        let md_resize_is_needed = w > 700;
+        let lg_resize_is_needed = lg_is_needed && w > 1600;
+        let xl_resize_is_needed = xl_is_needed && w > 2500;
+        let vt_resize_is_needed = h > 2400;
+
+        // Simple Filname for all sizes
+        let md_simple_filename = format!("md_{}", id);
+        let lg_simple_filename = format!("lg_{}", id);
+        let xl_simple_filename = format!("xl_{}", id);
+        let vt_simple_filename = format!("vt_{}", id);
+
+        // Transcode Result Destination for all sizes
+        let md_transcode_result_destination = Arc::new(dummy_dir.path().join(&md_simple_filename).with_extension("webp").as_path());
+        let lg_transcode_result_destination = Arc::new(dummy_dir.path().join(&lg_simple_filename).with_extension("webp").as_path());
+        let xl_transcode_result_destination = Arc::new(dummy_dir.path().join(&xl_simple_filename).with_extension("webp").as_path());
+        let vt_transcode_result_destination = Arc::new(dummy_dir.path().join(&vt_simple_filename).with_extension("webp").as_path());
+
+        // S3 Bucket Target Path
+        let s3_prefix = "categories";
+        let md_cdn_destination_path = format!("{s3_prefix}/{md_simple_filename}.webp");
+        let lg_cdn_destination_path = format!("{s3_prefix}/{lg_simple_filename}.webp");
+        let xl_cdn_destination_path = format!("{s3_prefix}/{xl_simple_filename}.webp");
+        let vt_cdn_destination_path = format!("{s3_prefix}/{vt_simple_filename}.webp");
+
+        // Set category data
+        {
+            let mut lock = category.lock().await;
+            lock.img_md = md_cdn_destination_path.clone();
+            lock.img_vt = Some(vt_cdn_destination_path.clone());
+            if lg_is_needed {
+                lock.img_lg = Some(lg_cdn_destination_path.clone());
+            }
+            if xl_is_needed {
+                lock.img_xl = Some(xl_cdn_destination_path.clone());
+            }
+        }
+
+        // println!("starting resize");
+        // let md_img = resize_image(&img, category, Md, md_is_needed, md_resize_is_needed, w, h).unwrap();
+        // let lg_img = resize_image(&img, category, Lg, lg_is_needed, lg_resize_is_needed, w, h).unwrap();
+        // let xl_img = resize_image(&img, category, Xl, xl_is_needed, xl_resize_is_needed, w, h).unwrap();
+        // let vt_img = resize_image(&img, category, Vt, vt_is_needed, vt_resize_is_needed, w, h).unwrap();
+
+        println!("starting resize");
+        let (md_img_res, lg_img_res, xl_img_res, vt_img_res) = tokio::join!(
+            resize_image(&img, category.clone(), Md, md_is_needed, md_resize_is_needed, w, h),
+            resize_image(&img, category.clone(), Lg, lg_is_needed, lg_resize_is_needed, w, h),
+            resize_image(&img, category.clone(), Xl, xl_is_needed, xl_resize_is_needed, w, h),
+            resize_image(&img, category.clone(), Vt, vt_is_needed, vt_resize_is_needed, w, h),
+        );
+
+        let (md_img, lg_img, xl_img, vt_img);
+        match md_img_res {
+            Ok(img) => {
+                md_img = img;
+            }
+            Err(e) => {
+                return Err((StatusCode::BAD_REQUEST, format!("Image resize error: {e}")));
+            }
+        }
+        match lg_img_res {
+            Ok(img) => {
+                lg_img = img;
+            }
+            Err(e) => {
+                return Err((StatusCode::BAD_REQUEST, format!("Image resize error: {e}")));
+            }
+        }
+        match xl_img_res {
+            Ok(img) => {
+                xl_img = img;
+            }
+            Err(e) => {
+                return Err((StatusCode::BAD_REQUEST, format!("Image resize error: {e}")));
+            }
+        }
+        match vt_img_res {
+            Ok(img) => {
+                vt_img = img;
+            }
+            Err(e) => {
+                return Err((StatusCode::BAD_REQUEST, format!("Image resize error: {e}")));
+            }
+        }
+
+        // let (md_img, lg_img, xl_img, vt_img);
+        // let blocking_task = tokio::task::spawn_blocking( || {
+        //     let md_img = resize_image(&img, category, Md, md_is_needed, md_resize_is_needed, w, h).unwrap();
+        //     let lg_img = resize_image(&img, category, Lg, lg_is_needed, lg_resize_is_needed, w, h).unwrap();
+        //     let xl_img = resize_image(&img, category, Xl, xl_is_needed, xl_resize_is_needed, w, h).unwrap();
+        //     let vt_img = resize_image(&img, category, Vt, vt_is_needed, vt_resize_is_needed, w, h).unwrap();
+        // });
+        // blocking_task.await.unwrap();
+
+        let md_trans_dest = md_transcode_result_destination.clone();
+        let lg_trans_dest = lg_transcode_result_destination.clone();
+        let xl_trans_dest = xl_transcode_result_destination.clone();
+        let vt_trans_dest = vt_transcode_result_destination.clone();
+
+        let (tc_md, tc_lg, tc_xl, tc_vt) = tokio::task::spawn_blocking(move || {
+            let (mut tc_md, mut tc_lg, mut tc_xl, mut tc_vt) = (Ok(()), Ok(()), Ok(()), Ok(()));
+            rayon::scope(|s| {
+                s.spawn(|_| tc_md = transcode_image(md_is_needed, &md_img, &md_trans_dest));
+                s.spawn(|_| tc_lg = transcode_image(lg_is_needed, &lg_img, &lg_trans_dest));
+                s.spawn(|_| tc_xl = transcode_image(xl_is_needed, &xl_img, &xl_trans_dest));
+                s.spawn(|_| tc_vt = transcode_image(vt_is_needed, &vt_img, &vt_trans_dest));
+            });
+            (tc_md, tc_lg, tc_xl, tc_vt)
+        })
+        .await
+        .unwrap();
+        dbg!(tc_md, tc_lg, tc_xl, tc_vt);
+
+        // let mut transcode_md = Ok(());
+        // let mut transcode_lg = Ok(());
+        // let mut transcode_xl = Ok(());
+        // let mut transcode_vt = Ok(());
+        // rayon::scope(|s| {
+        //     s.spawn(|_| transcode_md = transcode_image(md_is_needed, &md_img, md_transcode_result_destination.as_path()));
+        //     s.spawn(|_| transcode_lg = transcode_image(lg_is_needed, &lg_img, lg_transcode_result_destination.as_path()));
+        //     s.spawn(|_| transcode_xl = transcode_image(xl_is_needed, &xl_img, xl_transcode_result_destination.as_path()));
+        //     s.spawn(|_| transcode_vt = transcode_image(vt_is_needed, &vt_img, vt_transcode_result_destination.as_path()));
+        // });
+        // dbg!(transcode_md);
+        // dbg!(transcode_lg);
+        // dbg!(transcode_xl);
+        // dbg!(transcode_vt);
+
+        // println!("starting transcode");
+        // let (_a, _b, _c, _d) = tokio::join!(
+        //     transcode_image(md_is_needed, &md_img, md_transcode_result_destination.as_path()),
+        //     transcode_image(lg_is_needed, &lg_img, lg_transcode_result_destination.as_path()),
+        //     transcode_image(xl_is_needed, &xl_img, xl_transcode_result_destination.as_path()),
+        //     transcode_image(vt_is_needed, &vt_img, vt_transcode_result_destination.as_path()),
+        // );
+    }
+
+    // category.name = category_name;
+    // dbg!(category);
+    //
+
+    println!("image was written: {}", md_transcode_result_destination.clone());
 
     let dummy_response = DummyResponse { text: "dummy_response".to_string() };
     Ok((StatusCode::OK, Json(dummy_response)))
-
-    // match sqlx::query_as!(Painting, "SELECT * FROM paintings WHERE category_id = $1", category_id)
-    //     .fetch_all(&pool)
-    //     .await
-    // {
-    //     Ok(mut data) => {
-    //         let url_prefix = "https://cdn.dansansouci.com/";
-    //         for painting in data.iter_mut() {
-    //             painting.img_md = format!("{}{}", url_prefix, painting.img_md);
-    //
-    //             if let Some(img_lg_unwrapped) = &painting.img_lg {
-    //                 painting.img_lg = Some(format!("{}{}", url_prefix, img_lg_unwrapped));
-    //             }
-    //
-    //             if let Some(img_xl_unwrapped) = &painting.img_xl {
-    //                 painting.img_xl = Some(format!("{}{}", url_prefix, img_xl_unwrapped));
-    //             }
-    //         }
-    //
-    //         Ok((StatusCode::OK, Json(data)))
-    //     }
-    //     Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-    // }
 }
 
-pub fn resize_image(
+pub async fn resize_image(
     img: &DynamicImage,
-    category: &mut Category,
+    category: Arc<Mutex<Category>>,
     size: Size,
     is_needed: bool,
     resize_is_needed: bool,
     w: u32,
     h: u32,
 ) -> anyhow::Result<Option<DynamicImage>, anyhow::Error> {
+    println!("resize of size: {:#?}", size);
     let new_img = if is_needed {
         if resize_is_needed {
             let resize_factor = match size {
@@ -266,20 +279,24 @@ pub fn resize_image(
 
             match size {
                 Md => {
-                    category.img_md_width = new_w;
-                    category.img_md_height = new_h;
+                    let mut lock = category.lock().await;
+                    lock.img_md_width = new_w;
+                    lock.img_md_height = new_h;
                 }
                 Lg => {
-                    category.img_lg_width = Some(new_w);
-                    category.img_lg_height = Some(new_h);
+                    let mut lock = category.lock().await;
+                    lock.img_lg_width = Some(new_w);
+                    lock.img_lg_height = Some(new_h);
                 }
                 Xl => {
-                    category.img_xl_width = Some(new_w);
-                    category.img_xl_height = Some(new_h);
+                    let mut lock = category.lock().await;
+                    lock.img_xl_width = Some(new_w);
+                    lock.img_xl_height = Some(new_h);
                 }
                 Vt => {
-                    category.img_vt_width = Some(new_h / 2);
-                    category.img_vt_height = Some(new_h);
+                    let mut lock = category.lock().await;
+                    lock.img_vt_width = Some(new_h / 2);
+                    lock.img_vt_height = Some(new_h);
                 }
             }
 
@@ -297,18 +314,21 @@ pub fn resize_image(
             // this particular size is needed, but resize is NOT needed
             match size {
                 Md => {
-                    category.img_md_width = w as i32;
-                    category.img_md_height = h as i32;
+                    let mut lock = category.lock().await;
+                    lock.img_md_width = w as i32;
+                    lock.img_md_height = h as i32;
                     img.clone()
                 }
                 Lg => {
-                    category.img_lg_width = Some(w as i32);
-                    category.img_lg_height = Some(h as i32);
+                    let mut lock = category.lock().await;
+                    lock.img_lg_width = Some(w as i32);
+                    lock.img_lg_height = Some(h as i32);
                     img.clone()
                 }
                 Xl => {
-                    category.img_xl_width = Some(w as i32);
-                    category.img_xl_height = Some(h as i32);
+                    let mut lock = category.lock().await;
+                    lock.img_xl_width = Some(w as i32);
+                    lock.img_xl_height = Some(h as i32);
                     img.clone()
                 }
                 _ => {
@@ -320,19 +340,20 @@ pub fn resize_image(
     } else {
         return Ok(None);
     };
-
     Ok(Some(new_img))
 }
 
-pub async fn transcode_image(
+pub fn transcode_image(
     is_needed: bool,
     sized_img: &Option<DynamicImage>,
-    transcode_result_destination: &PathBuf,
+    transcode_result_destination: &StdPath,
 ) -> Result<(), anyhow::Error> {
     if is_needed && let Some(img) = sized_img {
-        let md_encoder: webp::Encoder = webp::Encoder::from_image(img).unwrap();
+        let md_encoder = match webp::Encoder::from_image(img) {
+            Ok(it) => it,
+            Err(err) => return Err(anyhow::anyhow!("encoder error: {:?}", err)),
+        };
         let md_webp: WebPMemory = md_encoder.encode(80f32);
-        // tokio::fs::write(transcode_result_destination, &*md_webp).await.unwrap();
         std::fs::write(transcode_result_destination, &*md_webp)?;
     }
 

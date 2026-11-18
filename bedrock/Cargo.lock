@@ -760,6 +760,7 @@ dependencies = [
  "dotenvy",
  "http-body-util",
  "image",
+ "rayon",
  "s3",
  "serde",
  "serde_json",
