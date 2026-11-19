@@ -19,6 +19,7 @@ mod logging;
 pub struct AppState {
     pool: Pool<Postgres>,
     s3_client: s3::Client,
+    s3_bucket_name: String,
 }
 
 #[tokio::main]
@@ -41,8 +42,9 @@ async fn main() {
         .expect("can't connect to database");
 
     let s3_client = cloud_storage::new().await.unwrap();
+    let s3_bucket_name = std::env::var("S3_BUCKET_NAME").expect("env var not found: s3 bucket name");
 
-    let app_state = AppState { pool, s3_client };
+    let app_state = AppState { pool, s3_client, s3_bucket_name };
 
     let app = Router::new()
         // .merge(basic_nav::build_routes_basic_nav())

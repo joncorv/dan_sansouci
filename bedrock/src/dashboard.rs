@@ -1,4 +1,6 @@
 #![allow(unused_imports)]
+use aws_sdk_s3 as s3;
+use aws_sdk_s3::primitives::ByteStream;
 use axum::Json;
 use axum::Router;
 use axum::extract::Multipart;
@@ -52,7 +54,7 @@ pub struct DummyResponse {
 
 #[axum::debug_handler]
 pub async fn create_category(
-    State(_app_state): State<AppState>,
+    State(app_state): State<AppState>,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<DummyResponse>), (StatusCode, String)> {
     let category = Arc::new(Mutex::new(Category::default()));
@@ -99,7 +101,6 @@ pub async fn create_category(
     }
 
     if let Some(img) = img {
-        let dummy_dir = tempdir::TempDir::new("category").unwrap();
         let (w, h) = (img.width(), img.height());
 
         // will we transcode each size?
@@ -119,12 +120,6 @@ pub async fn create_category(
         let lg_simple_filename = format!("lg_{}", id);
         let xl_simple_filename = format!("xl_{}", id);
         let vt_simple_filename = format!("vt_{}", id);
-
-        // Transcode Result Destination for all sizes
-        let md_transcode_result_destination = Arc::new(dummy_dir.path().join(&md_simple_filename).with_extension("webp"));
-        let lg_transcode_result_destination = Arc::new(dummy_dir.path().join(&lg_simple_filename).with_extension("webp"));
-        let xl_transcode_result_destination = Arc::new(dummy_dir.path().join(&xl_simple_filename).with_extension("webp"));
-        let vt_transcode_result_destination = Arc::new(dummy_dir.path().join(&vt_simple_filename).with_extension("webp"));
 
         // S3 Bucket Target Path
         let s3_prefix = "categories";
@@ -206,38 +201,63 @@ pub async fn create_category(
             }
         }
 
-        let transcode_result = tokio::task::spawn_blocking(move || {
-            let (mut tc_md, mut tc_lg, mut tc_xl, mut tc_vt) = (Ok(()), Ok(()), Ok(()), Ok(()));
+        let encode_result = tokio::task::spawn_blocking(move || {
+            let (mut md_bytes, mut lg_bytes, mut xl_bytes, mut vt_bytes) = (Ok(None), Ok(None), Ok(None), Ok(None));
             rayon::scope(|s| {
-                s.spawn(|_| tc_md = transcode_image(md_is_needed, &md_img, md_transcode_result_destination.clone()));
-                s.spawn(|_| tc_lg = transcode_image(lg_is_needed, &lg_img, lg_transcode_result_destination.clone()));
-                s.spawn(|_| tc_xl = transcode_image(xl_is_needed, &xl_img, xl_transcode_result_destination.clone()));
-                s.spawn(|_| tc_vt = transcode_image(vt_is_needed, &vt_img, vt_transcode_result_destination.clone()));
+                s.spawn(|_| md_bytes = encode_image_to_bytes(md_is_needed, &md_img));
+                s.spawn(|_| lg_bytes = encode_image_to_bytes(lg_is_needed, &lg_img));
+                s.spawn(|_| xl_bytes = encode_image_to_bytes(xl_is_needed, &xl_img));
+                s.spawn(|_| vt_bytes = encode_image_to_bytes(vt_is_needed, &vt_img));
             });
-            (tc_md, tc_lg, tc_xl, tc_vt)
+            (md_bytes, lg_bytes, xl_bytes, vt_bytes)
         })
         .await;
 
-        // handle any transcode errors here and break the whole thing
-        match transcode_result {
+        // handle any encode errors here and break the whole thing
+        let (md_bytes, lg_bytes, xl_bytes, vt_bytes);
+        match encode_result {
             Ok(val) => {
-                if let Err(e) = val.0 {
-                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image transcode error: {e}")));
+                match val.0 {
+                    Ok(md) => md_bytes = md,
+                    Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image encode error: {e}"))),
                 }
-                if let Err(e) = val.1 {
-                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image transcode error: {e}")));
+                match val.1 {
+                    Ok(lg) => lg_bytes = lg,
+                    Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image encode error: {e}"))),
                 }
-                if let Err(e) = val.2 {
-                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image transcode error: {e}")));
+                match val.2 {
+                    Ok(xl) => xl_bytes = xl,
+                    Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image encode error: {e}"))),
                 }
-                if let Err(e) = val.3 {
-                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image transcode error: {e}")));
+                match val.3 {
+                    Ok(vt) => vt_bytes = vt,
+                    Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image encode error: {e}"))),
                 }
             }
             Err(e) => {
-                return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image transcode error: {e}")));
+                return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image encode error: {e}")));
             }
         }
+
+        /////////////////////////////////////////////////////////////
+        ///////////////// Upload to S3 //////////////////////////////
+        /////////////////////////////////////////////////////////////
+
+        // let md_transcode_result_destination = md_transcode_result_destination.to_path_buf();
+        // let lg_transcode_result_destination = lg_transcode_result_destination.to_path_buf();
+        // let xl_transcode_result_destination = xl_transcode_result_destination.to_path_buf();
+        // let vt_transcode_result_destination = vt_transcode_result_destination.to_path_buf();
+
+        let (_a, _b, _c, _d) = tokio::join!(
+            // medium upload
+            upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &md_cdn_destination_path, md_bytes, md_is_needed,),
+            // lg upload
+            upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &lg_cdn_destination_path, lg_bytes, lg_is_needed,),
+            // xl upload
+            upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &xl_cdn_destination_path, xl_bytes, xl_is_needed,),
+            // vt upload
+            upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &vt_cdn_destination_path, vt_bytes, vt_is_needed,),
+        );
     }
 
     let dummy_response = DummyResponse { text: "dummy_response".to_string() };
@@ -331,19 +351,41 @@ pub async fn resize_image(
     Ok(Some(new_img))
 }
 
-pub fn transcode_image(
-    is_needed: bool,
-    sized_img: &Option<DynamicImage>,
-    transcode_result_destination: Arc<PathBuf>,
-) -> Result<(), anyhow::Error> {
+pub fn encode_image_to_bytes(is_needed: bool, sized_img: &Option<DynamicImage>) -> Result<Option<Vec<u8>>, anyhow::Error> {
     if is_needed && let Some(img) = sized_img {
-        println!("transcoding now");
-        let md_encoder = match webp::Encoder::from_image(img) {
+        println!("encoding now");
+        let encoder = match webp::Encoder::from_image(img) {
             Ok(it) => it,
             Err(err) => return Err(anyhow::anyhow!("encoder error: {:?}", err)),
         };
-        let md_webp: WebPMemory = md_encoder.encode(80f32);
-        std::fs::write(transcode_result_destination.as_path(), &*md_webp)?;
+        let webp_bytes = encoder.encode(80f32).to_vec();
+        return Ok(Some(webp_bytes));
+    }
+
+    Ok(None)
+}
+
+async fn upload_object(
+    client: &s3::Client,
+    bucket: &str,
+    key: &str,
+    bytes: Option<Vec<u8>>,
+    validation: bool,
+) -> Result<(), anyhow::Error> {
+    if validation && let Some(bytes) = bytes {
+        let body = ByteStream::from(bytes);
+
+        client
+            .put_object()
+            .bucket(bucket)
+            .key(key)
+            .body(body)
+            .content_type("image/webp")
+            .cache_control("public, max-age=31536000, immutable")
+            .send()
+            .await?;
+
+        println!("Uploadedto {}/{}", bucket, key);
     }
 
     Ok(())
