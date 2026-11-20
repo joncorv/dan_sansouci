@@ -9,8 +9,8 @@ use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 
 // mod basic_nav;
+mod categories;
 mod cloud_storage;
-mod dashboard;
 mod datatypes;
 // mod dummy_data;
 mod logging;
@@ -48,7 +48,7 @@ async fn main() {
 
     let app = Router::new()
         // .merge(basic_nav::build_routes_basic_nav())
-        .merge(dashboard::build_routes_dashboard())
+        .merge(categories::build_routes_categories())
         .layer(cors)
         .layer(logging::create_trace_layer())
         .layer(DefaultBodyLimit::max(10_000_000))

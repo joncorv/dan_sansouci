@@ -37,8 +37,8 @@ use crate::datatypes::{Category, Painting, Size, Slideshow};
 //     src_img: Option<String>,
 // }
 
-pub fn build_routes_dashboard() -> Router<AppState> {
-    Router::new().route("/create-category", post(create_category))
+pub fn build_routes_categories() -> Router<AppState> {
+    Router::new().route("/categories", get(get_categories).post(post_category))
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -47,18 +47,46 @@ pub struct CategoryRequest {
     // pub img:
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct DummyResponse {
-    pub text: String,
+#[axum::debug_handler]
+pub async fn get_categories(State(app_state): State<AppState>) -> impl IntoResponse {
+    println!("getting some categories here");
+    match sqlx::query_as!(Category, "SELECT * FROM categories",).fetch_all(&app_state.pool).await {
+        Ok(mut data) => {
+            let url_prefix = "https://cdn.dansansouci.com/";
+            for category in data.iter_mut() {
+                category.img_md = format!("{}{}", url_prefix, category.img_md);
+
+                if let Some(img_lg_unwrapped) = &category.img_lg {
+                    category.img_lg = Some(format!("{}{}", url_prefix, img_lg_unwrapped));
+                }
+
+                if let Some(img_xl_unwrapped) = &category.img_xl {
+                    category.img_xl = Some(format!("{}{}", url_prefix, img_xl_unwrapped));
+                }
+
+                if let Some(img_vt_unwrapped) = &category.img_vt {
+                    category.img_vt = Some(format!("{}{}", url_prefix, img_vt_unwrapped));
+                }
+            }
+
+            Ok((StatusCode::OK, Json(data)))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
 }
 
 #[axum::debug_handler]
-pub async fn create_category(
+pub async fn post_category(
     State(app_state): State<AppState>,
     mut multipart: Multipart,
-) -> Result<(StatusCode, Json<DummyResponse>), (StatusCode, String)> {
+) -> Result<(StatusCode, Json<Vec<Category>>), (StatusCode, String)> {
     let category = Arc::new(Mutex::new(Category::default()));
     let id = uuid::Uuid::new_v4();
+
+    {
+        let mut lock = category.lock().await;
+        lock.category_id = id;
+    }
 
     let mut img: Option<DynamicImage> = None;
 
@@ -71,10 +99,31 @@ pub async fn create_category(
                 lock.name = field.text().await.unwrap_or_default();
                 println!("we have a name: {}", lock.name);
             }
+            "idx" => {
+                // let found_index = field.text().await;
+
+                match field.text().await {
+                    Ok(idx_text) => {
+                        match idx_text.parse::<i32>() {
+                            Ok(idx) => {
+                                // nice we have a fuckin cool and sweet i32
+                                let mut lock = category.lock().await;
+                                lock.idx = idx;
+                                println!("we have an index: {}", idx);
+                            }
+                            Err(e) => {
+                                return Err((StatusCode::BAD_REQUEST, format!("illegal idx value: {e}")));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        return Err((StatusCode::BAD_REQUEST, format!("Multipart form error: {e}")));
+                    }
+                }
+            }
             "img" => {
                 let bytes = field.bytes().await;
                 println!("we have an image");
-
                 match bytes {
                     Ok(bytes) => {
                         match image::load_from_memory(&bytes) {
@@ -122,7 +171,7 @@ pub async fn create_category(
         let vt_simple_filename = format!("vt_{}", id);
 
         // S3 Bucket Target Path
-        let s3_prefix = "categories";
+        let s3_prefix = "DUMMY_categories";
         let md_cdn_destination_path = format!("{s3_prefix}/{md_simple_filename}.webp");
         let lg_cdn_destination_path = format!("{s3_prefix}/{lg_simple_filename}.webp");
         let xl_cdn_destination_path = format!("{s3_prefix}/{xl_simple_filename}.webp");
@@ -243,25 +292,125 @@ pub async fn create_category(
         ///////////////// Upload to S3 //////////////////////////////
         /////////////////////////////////////////////////////////////
 
-        // let md_transcode_result_destination = md_transcode_result_destination.to_path_buf();
-        // let lg_transcode_result_destination = lg_transcode_result_destination.to_path_buf();
-        // let xl_transcode_result_destination = xl_transcode_result_destination.to_path_buf();
-        // let vt_transcode_result_destination = vt_transcode_result_destination.to_path_buf();
-
         let (_a, _b, _c, _d) = tokio::join!(
-            // medium upload
             upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &md_cdn_destination_path, md_bytes, md_is_needed,),
-            // lg upload
             upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &lg_cdn_destination_path, lg_bytes, lg_is_needed,),
-            // xl upload
             upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &xl_cdn_destination_path, xl_bytes, xl_is_needed,),
-            // vt upload
             upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &vt_cdn_destination_path, vt_bytes, vt_is_needed,),
         );
+    } else {
+        return Err((StatusCode::BAD_REQUEST, String::from("You must include an image with each new Category")));
     }
 
-    let dummy_response = DummyResponse { text: "dummy_response".to_string() };
-    Ok((StatusCode::OK, Json(dummy_response)))
+    {
+        let category = category.lock().await;
+
+        let query_result = sqlx::query_as!(
+            Category,
+            r#"
+            INSERT INTO categories (
+                category_id,
+                idx,
+                name,
+                img_md,
+                img_md_width,
+                img_md_height,
+                img_lg,
+                img_lg_width,
+                img_lg_height,
+                img_xl,
+                img_xl_width,
+                img_xl_height,
+                img_vt,
+                img_vt_width,
+                img_vt_height
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            ON CONFLICT (category_id)
+            DO UPDATE set
+                category_id = EXCLUDED.category_id,
+                idx = EXCLUDED.idx,
+                name = EXCLUDED.name,
+                img_md = EXCLUDED.img_md,
+                img_md_width = EXCLUDED.img_md_width,
+                img_md_height = EXCLUDED.img_md_height,
+                img_lg = EXCLUDED.img_lg,
+                img_lg_width = EXCLUDED.img_lg_width,
+                img_lg_height = EXCLUDED.img_lg_height,
+                img_xl = EXCLUDED.img_xl,
+                img_xl_width = EXCLUDED.img_xl_width,
+                img_xl_height = EXCLUDED.img_xl_height,
+                img_vt = EXCLUDED.img_vt,
+                img_vt_width = EXCLUDED.img_vt_width,
+                img_vt_height = EXCLUDED.img_vt_height
+            RETURNING
+                category_id,
+                idx,
+                name,
+                img_md,
+                img_md_width,
+                img_md_height,
+                img_lg,
+                img_lg_width,
+                img_lg_height,
+                img_xl,
+                img_xl_width,
+                img_xl_height,
+                img_vt,
+                img_vt_width,
+                img_vt_height
+            "#,
+            category.category_id,
+            category.idx,
+            category.name,
+            category.img_md,
+            category.img_md_width,
+            category.img_md_height,
+            category.img_lg,
+            category.img_lg_width,
+            category.img_lg_height,
+            category.img_xl,
+            category.img_xl_width,
+            category.img_xl_height,
+            category.img_vt,
+            category.img_vt_width,
+            category.img_vt_height
+        )
+        .fetch_one(&app_state.pool)
+        .await;
+
+        if let Err(e) = query_result {
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database Error: {e}")));
+        } else {
+            match sqlx::query_as!(Category, "SELECT * FROM categories",).fetch_all(&app_state.pool).await {
+                Ok(mut data) => {
+                    let url_prefix = "https://cdn.dansansouci.com/";
+                    for category in data.iter_mut() {
+                        category.img_md = format!("{}{}", url_prefix, category.img_md);
+
+                        if let Some(img_lg_unwrapped) = &category.img_lg {
+                            category.img_lg = Some(format!("{}{}", url_prefix, img_lg_unwrapped));
+                        }
+
+                        if let Some(img_xl_unwrapped) = &category.img_xl {
+                            category.img_xl = Some(format!("{}{}", url_prefix, img_xl_unwrapped));
+                        }
+
+                        if let Some(img_vt_unwrapped) = &category.img_vt {
+                            category.img_vt = Some(format!("{}{}", url_prefix, img_vt_unwrapped));
+                        }
+                    }
+
+                    return Ok((StatusCode::OK, Json(data)));
+                }
+                Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+            }
+        }
+    }
+    // dbg!(category);
+
+    // let dummy_response = DummyResponse { text: "dummy_response".to_string() };
+    // Ok((StatusCode::OK, Json(dummy_response)))
 }
 
 pub async fn resize_image(
@@ -340,6 +489,9 @@ pub async fn resize_image(
                     img.clone()
                 }
                 _ => {
+                    let mut lock = category.lock().await;
+                    lock.img_vt_width = Some((h / 2) as i32);
+                    lock.img_vt_height = Some(h as i32);
                     let x_crop = (w / 2) - (h / 4);
                     img.crop_imm(x_crop, 0, h / 2, h)
                 }
@@ -390,3 +542,5 @@ async fn upload_object(
 
     Ok(())
 }
+
+pub async fn post_new_category_to_database() {}

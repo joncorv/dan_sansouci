@@ -24,7 +24,7 @@ CREATE TABLE slideshow (
 
 CREATE TABLE categories (
     category_id UUID PRIMARY KEY,
-    idx INTEGER UNIQUE NOT NULL,
+    idx INTEGER NOT NULL,
     name TEXT NOT NULL,
 
     img_md TEXT NOT NULL,
