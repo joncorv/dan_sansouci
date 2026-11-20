@@ -34,11 +34,6 @@ use crate::AppState;
 use crate::datatypes::Size::{Lg, Md, Vt, Xl};
 use crate::datatypes::{Category, Painting, Size, Slideshow};
 
-// #[derive(Debug, Deserialize, Serialize)]
-// struct SlideshowSelection {
-//     src_img: Option<String>,
-// }
-
 pub fn build_routes_categories() -> Router<AppState> {
     Router::new()
         .route("/categories", get(get_categories))
@@ -48,8 +43,56 @@ pub fn build_routes_categories() -> Router<AppState> {
 }
 
 #[axum::debug_handler]
-pub async fn sort_categories(State(_app_state): State<AppState>, Json(_uuids): Json<Vec<Uuid>>) -> impl IntoResponse {
-    StatusCode::OK
+pub async fn sort_categories(State(app_state): State<AppState>, Json(uuids): Json<Vec<Uuid>>) -> impl IntoResponse {
+    if uuids.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, String::from("Empty array")));
+    }
+    let indexes: Vec<i32> = (0..uuids.len()).map(|num| num as i32).collect();
+    let sort_result = sqlx::query_as!(
+        Category,
+        r#"
+            UPDATE categories as old_cats
+            SET
+                idx = new_cats.idx
+            FROM UNNEST($1::uuid[], $2::int[]) AS new_cats(category_id, idx)
+            WHERE old_cats.category_id = new_cats.category_id
+        "#,
+        &uuids,
+        &indexes
+    )
+    .execute(&app_state.pool)
+    .await;
+
+    if let Err(e) = sort_result {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
+    }
+
+    match sqlx::query_as!(Category, "SELECT * FROM categories",)
+        .fetch_all(&app_state.pool)
+        .await
+    {
+        Ok(mut data) => {
+            let url_prefix = "https://cdn.dansansouci.com/";
+            for category in data.iter_mut() {
+                category.img_md = format!("{}{}", url_prefix, category.img_md);
+
+                if let Some(img_lg_unwrapped) = &category.img_lg {
+                    category.img_lg = Some(format!("{}{}", url_prefix, img_lg_unwrapped));
+                }
+
+                if let Some(img_xl_unwrapped) = &category.img_xl {
+                    category.img_xl = Some(format!("{}{}", url_prefix, img_xl_unwrapped));
+                }
+
+                if let Some(img_vt_unwrapped) = &category.img_vt {
+                    category.img_vt = Some(format!("{}{}", url_prefix, img_vt_unwrapped));
+                }
+            }
+
+            Ok((StatusCode::OK, Json(data)))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
 }
 
 #[axum::debug_handler]
@@ -113,8 +156,6 @@ pub async fn post_category(
                 println!("we have a name: {}", lock.name);
             }
             "idx" => {
-                // let found_index = field.text().await;
-
                 match field.text().await {
                     Ok(idx_text) => {
                         match idx_text.parse::<i32>() {
@@ -136,7 +177,7 @@ pub async fn post_category(
             }
             "img" => {
                 let bytes = field.bytes().await;
-                println!("we have an image");
+                println!("we have an image attached to the form");
                 match bytes {
                     Ok(bytes) => {
                         match image::load_from_memory(&bytes) {
@@ -177,21 +218,15 @@ pub async fn post_category(
         let xl_resize_is_needed = xl_is_needed && w > 2500;
         let vt_resize_is_needed = h > 2400;
 
-        // Simple Filname for all sizes
-        let md_simple_filename = format!("md_{}", id);
-        let lg_simple_filename = format!("lg_{}", id);
-        let xl_simple_filename = format!("xl_{}", id);
-        let vt_simple_filename = format!("vt_{}", id);
-
         // S3 Bucket Target Path
         let s3_prefix = "DUMMY_categories";
-        let md_cdn_destination_path = format!("{s3_prefix}/{md_simple_filename}.webp");
-        let lg_cdn_destination_path = format!("{s3_prefix}/{lg_simple_filename}.webp");
-        let xl_cdn_destination_path = format!("{s3_prefix}/{xl_simple_filename}.webp");
-        let vt_cdn_destination_path = format!("{s3_prefix}/{vt_simple_filename}.webp");
+        let md_cdn_destination_path = format!("{s3_prefix}/md_{id}.webp");
+        let lg_cdn_destination_path = format!("{s3_prefix}/lg_{id}.webp");
+        let xl_cdn_destination_path = format!("{s3_prefix}/xl_{id}.webp");
+        let vt_cdn_destination_path = format!("{s3_prefix}/vt_{id}.webp");
 
-        // Set category data
         {
+            // Set category data
             let mut lock = category.lock().await;
             lock.img_md = md_cdn_destination_path.clone();
             lock.img_vt = Some(vt_cdn_destination_path.clone());
@@ -202,24 +237,6 @@ pub async fn post_category(
                 lock.img_xl = Some(xl_cdn_destination_path.clone());
             }
         }
-
-        // println!("starting resize");
-        // let md_img = resize_image(&img, category, Md, md_is_needed, md_resize_is_needed, w, h).unwrap();
-        // let lg_img = resize_image(&img, category, Lg, lg_is_needed, lg_resize_is_needed, w, h).unwrap();
-        // let xl_img = resize_image(&img, category, Xl, xl_is_needed, xl_resize_is_needed, w, h).unwrap();
-        // let vt_img = resize_image(&img, category, Vt, vt_is_needed, vt_resize_is_needed, w, h).unwrap();
-
-        // let resize_result = tokio::task::spawn_blocking(move || {
-        //     let (mut md_img, mut lg_img, mut xl_img, mut vt_img) = (Ok(None), Ok(None), Ok(None), Ok(None));
-        //     rayon::scope(|s| {
-        //         s.spawn(|_| md_img = resize_image(&img, category.clone(), Md, md_is_needed, md_resize_is_needed, w, h));
-        //         s.spawn(|_| lg_img = resize_image(&img, category.clone(), Lg, lg_is_needed, lg_resize_is_needed, w, h));
-        //         s.spawn(|_| xl_img = resize_image(&img, category.clone(), Xl, xl_is_needed, xl_resize_is_needed, w, h));
-        //         s.spawn(|_| vt_img = resize_image(&img, category.clone(), Vt, vt_is_needed, vt_resize_is_needed, w, h));
-        //     });
-        //     (md_img, lg_img, xl_img, vt_img)
-        // })
-        // .await;
 
         println!("starting resize");
         let (md_img_res, lg_img_res, xl_img_res, vt_img_res) = tokio::join!(
@@ -420,7 +437,7 @@ pub async fn post_category(
         .await;
 
         if let Err(e) = query_result {
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database Error: {e}")));
+            Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database Error: {e}")))
         } else {
             match sqlx::query_as!(Category, "SELECT * FROM categories",)
                 .fetch_all(&app_state.pool)
@@ -444,16 +461,12 @@ pub async fn post_category(
                         }
                     }
 
-                    return Ok((StatusCode::OK, Json(data)));
+                    Ok((StatusCode::OK, Json(data)))
                 }
-                Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+                Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
             }
         }
     }
-    // dbg!(category);
-
-    // let dummy_response = DummyResponse { text: "dummy_response".to_string() };
-    // Ok((StatusCode::OK, Json(dummy_response)))
 }
 
 pub async fn resize_image(
