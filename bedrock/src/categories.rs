@@ -5,10 +5,12 @@ use axum::Json;
 use axum::Router;
 use axum::extract::Multipart;
 use axum::extract::Path;
+use axum::extract::Query;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
+use axum::routing::patch;
 use axum::routing::post;
 use image::DynamicImage;
 use image::ImageError;
@@ -38,19 +40,30 @@ use crate::datatypes::{Category, Painting, Size, Slideshow};
 // }
 
 pub fn build_routes_categories() -> Router<AppState> {
-    Router::new().route("/categories", get(get_categories).post(post_category))
+    Router::new()
+        .route("/categories", get(get_categories))
+        .route("/category", post(post_category))
+        .route("/category/{uuid}", patch(patch_category))
+        .route("/sort-categories", patch(sort_categories))
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CategoryRequest {
-    pub name: String,
-    // pub img:
+#[axum::debug_handler]
+pub async fn sort_categories(State(_app_state): State<AppState>, Json(_uuids): Json<Vec<Uuid>>) -> impl IntoResponse {
+    StatusCode::OK
+}
+
+#[axum::debug_handler]
+pub async fn patch_category(State(_app_state): State<AppState>, Path(_path): Path<Uuid>, mut _multipart: Multipart) -> impl IntoResponse {
+    StatusCode::OK
 }
 
 #[axum::debug_handler]
 pub async fn get_categories(State(app_state): State<AppState>) -> impl IntoResponse {
     println!("getting some categories here");
-    match sqlx::query_as!(Category, "SELECT * FROM categories",).fetch_all(&app_state.pool).await {
+    match sqlx::query_as!(Category, "SELECT * FROM categories",)
+        .fetch_all(&app_state.pool)
+        .await
+    {
         Ok(mut data) => {
             let url_prefix = "https://cdn.dansansouci.com/";
             for category in data.iter_mut() {
@@ -293,13 +306,40 @@ pub async fn post_category(
         /////////////////////////////////////////////////////////////
 
         let (_a, _b, _c, _d) = tokio::join!(
-            upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &md_cdn_destination_path, md_bytes, md_is_needed,),
-            upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &lg_cdn_destination_path, lg_bytes, lg_is_needed,),
-            upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &xl_cdn_destination_path, xl_bytes, xl_is_needed,),
-            upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &vt_cdn_destination_path, vt_bytes, vt_is_needed,),
+            upload_object(
+                &app_state.s3_client,
+                &app_state.s3_bucket_name,
+                &md_cdn_destination_path,
+                md_bytes,
+                md_is_needed,
+            ),
+            upload_object(
+                &app_state.s3_client,
+                &app_state.s3_bucket_name,
+                &lg_cdn_destination_path,
+                lg_bytes,
+                lg_is_needed,
+            ),
+            upload_object(
+                &app_state.s3_client,
+                &app_state.s3_bucket_name,
+                &xl_cdn_destination_path,
+                xl_bytes,
+                xl_is_needed,
+            ),
+            upload_object(
+                &app_state.s3_client,
+                &app_state.s3_bucket_name,
+                &vt_cdn_destination_path,
+                vt_bytes,
+                vt_is_needed,
+            ),
         );
     } else {
-        return Err((StatusCode::BAD_REQUEST, String::from("You must include an image with each new Category")));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            String::from("You must include an image with each new Category"),
+        ));
     }
 
     {
@@ -382,7 +422,10 @@ pub async fn post_category(
         if let Err(e) = query_result {
             return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database Error: {e}")));
         } else {
-            match sqlx::query_as!(Category, "SELECT * FROM categories",).fetch_all(&app_state.pool).await {
+            match sqlx::query_as!(Category, "SELECT * FROM categories",)
+                .fetch_all(&app_state.pool)
+                .await
+            {
                 Ok(mut data) => {
                     let url_prefix = "https://cdn.dansansouci.com/";
                     for category in data.iter_mut() {
@@ -464,7 +507,8 @@ pub async fn resize_image(
                     let new_h = new_h as u32;
                     let x_crop = (new_w / 2) - (new_h / 4);
 
-                    img.resize(new_w, new_h, imageops::FilterType::Triangle).crop_imm(x_crop, 0, new_h / 2, new_h)
+                    img.resize(new_w, new_h, imageops::FilterType::Triangle)
+                        .crop_imm(x_crop, 0, new_h / 2, new_h)
                 }
             }
         } else {

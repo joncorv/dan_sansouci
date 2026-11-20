@@ -22,20 +22,14 @@ struct SlideshowSelection {
 pub fn build_routes_basic_nav() -> Router<AppState> {
     Router::new()
         .route("/slideshow", get(get_slideshow_images))
-        .route("/categories", get(get_categories))
+        // .route("/categories", get(get_categories))
         .route("/paintings/{category_id}", get(get_paintings_in_category))
 }
 
 #[axum::debug_handler]
-pub async fn get_paintings_in_category(
-    State(app_state): State<AppState>,
-    Path(category_id): Path<i32>,
-) -> impl IntoResponse {
+pub async fn get_paintings_in_category(State(app_state): State<AppState>, Path(category_id): Path<i32>) -> impl IntoResponse {
     println!("getting some paintings here");
-    match sqlx::query_as!(Painting, "SELECT * FROM paintings WHERE category_id = $1", category_id)
-        .fetch_all(&app_state.pool)
-        .await
-    {
+    match sqlx::query_as!(Painting, "SELECT * FROM paintings WHERE category_id = $1", category_id).fetch_all(&app_state.pool).await {
         Ok(mut data) => {
             let url_prefix = "https://cdn.dansansouci.com/";
             for painting in data.iter_mut() {

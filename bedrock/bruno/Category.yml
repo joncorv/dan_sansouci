@@ -1,27 +1,29 @@
 info:
   name: Category
   type: http
-  seq: 4
+  seq: 2
 
 http:
   method: POST
-  url: "{{base_url}}/create-category"
+  url: "{{base_url}}/category"
   body:
     type: multipart-form
     data:
       - name: name
         type: text
-        value: '"Some New Category"'
+        value: Another Dead One
       - name: img
         type: file
         value:
-          - C:\Users\joncorv\Desktop\blank-bg.png
-        contentType: image/png
-        disabled: true
+          - \\wsl.localhost\FedoraLinux-43\home\joncorv\Documents\dan_sansouci_cdn\day-of-the-dead\day-of-the-dead-0012.jpg
+        contentType: image/jpeg
       - name: balls
         type: text
         value: shit
         disabled: true
+      - name: idx
+        type: text
+        value: "2"
   auth: inherit
 
 settings:
