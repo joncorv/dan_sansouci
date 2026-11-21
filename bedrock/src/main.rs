@@ -12,8 +12,10 @@ use tower_http::cors::{Any, CorsLayer};
 mod categories;
 mod cloud_storage;
 mod datatypes;
+mod paintings;
 // mod dummy_data;
 mod logging;
+mod slideshow;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -44,10 +46,15 @@ async fn main() {
     let s3_client = cloud_storage::new().await.unwrap();
     let s3_bucket_name = std::env::var("S3_BUCKET_NAME").expect("env var not found: s3 bucket name");
 
-    let app_state = AppState { pool, s3_client, s3_bucket_name };
+    let app_state = AppState {
+        pool,
+        s3_client,
+        s3_bucket_name,
+    };
 
     let app = Router::new()
-        // .merge(basic_nav::build_routes_basic_nav())
+        .merge(slideshow::build_routes_slideshow())
+        .merge(paintings::build_routes_paintings())
         .merge(categories::build_routes_categories())
         .layer(cors)
         .layer(logging::create_trace_layer())

@@ -5,7 +5,7 @@ info:
 
 http:
   method: PATCH
-  url: "{{base_url}}/category/3a198ea8-317c-47f5-81a5-d50abb683b40"
+  url: "{{base_url}}/category"
   body:
     type: multipart-form
     data:
@@ -24,6 +24,7 @@ http:
       - name: idx
         type: text
         value: "2"
+        disabled: true
   auth: inherit
 
 settings:

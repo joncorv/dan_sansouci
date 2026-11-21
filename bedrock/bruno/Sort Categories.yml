@@ -11,8 +11,8 @@ http:
     data: |-
       [
         "6e02e890-f2d9-4cc5-858f-97e85f13d497",
-        "3a198ea8-317c-47f5-81a5-d50abb683b40",
-        "1f6abf35-b2c9-4a8b-834a-1d1054d77a61"
+        "1f6abf35-b2c9-4a8b-834a-1d1054d77a61",
+        "3a198ea8-317c-47f5-81a5-d50abb683b40"
       ]
   auth: inherit
 

@@ -37,8 +37,7 @@ use crate::datatypes::{Category, Painting, Size, Slideshow};
 pub fn build_routes_categories() -> Router<AppState> {
     Router::new()
         .route("/categories", get(get_categories))
-        .route("/category", post(post_category))
-        .route("/category/{uuid}", patch(patch_category))
+        .route("/category", post(post_category).patch(patch_category))
         .route("/sort-categories", patch(sort_categories))
 }
 
@@ -67,7 +66,7 @@ pub async fn sort_categories(State(app_state): State<AppState>, Json(uuids): Jso
         return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
     }
 
-    match sqlx::query_as!(Category, "SELECT * FROM categories",)
+    match sqlx::query_as!(Category, "SELECT * FROM categories ORDER BY idx",)
         .fetch_all(&app_state.pool)
         .await
     {
@@ -96,14 +95,406 @@ pub async fn sort_categories(State(app_state): State<AppState>, Json(uuids): Jso
 }
 
 #[axum::debug_handler]
-pub async fn patch_category(State(_app_state): State<AppState>, Path(_path): Path<Uuid>, mut _multipart: Multipart) -> impl IntoResponse {
-    StatusCode::OK
+pub async fn patch_category(
+    State(app_state): State<AppState>,
+    mut multipart: Multipart,
+) -> Result<(StatusCode, Json<Vec<Category>>), (StatusCode, String)> {
+    let category = Arc::new(Mutex::new(Category::default()));
+    let mut img: Option<DynamicImage> = None;
+    let mut name: Option<String> = None;
+    let mut id: Option<Uuid> = None;
+
+    while let Some(field) = multipart.next_field().await.unwrap_or_default() {
+        let field_name = field.name().unwrap_or_default().to_string();
+
+        match field_name.as_str() {
+            "name" => match field.text().await {
+                Ok(text) => {
+                    name = Some(text.to_string());
+                }
+                Err(e) => {
+                    eprintln!("illegal idx value. taking as blank and allowing to continue: {e}");
+                }
+            },
+            "idx" => {
+                // for now we are skipping idx. sorting is a separate function.
+            }
+
+            "id" => {
+                match field.text().await {
+                    Ok(idx_text) => {
+                        match idx_text.parse::<Uuid>() {
+                            Ok(idx) => {
+                                // nice we have a fuckin cool and sweet Uuid
+                                id = Some(idx)
+                            }
+                            Err(e) => {
+                                return Err((StatusCode::BAD_REQUEST, format!("illegal id: {e}")));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        return Err((StatusCode::BAD_REQUEST, format!("Multipart form error: {e}")));
+                    }
+                }
+            }
+
+            "img" => {
+                let bytes = field.bytes().await;
+                println!("we have an image attached to the form");
+                match bytes {
+                    Ok(bytes) => {
+                        match image::load_from_memory(&bytes) {
+                            Ok(img_good) => {
+                                println!("hey this image works");
+
+                                img = Some(img_good);
+                            }
+                            Err(e) => {
+                                //
+                                return Err((StatusCode::BAD_REQUEST, format!("image processing error: {e}")));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        return Err((StatusCode::BAD_REQUEST, format!("Image file error: {e}")));
+                    }
+                }
+            }
+            _ => {
+                return Err((StatusCode::BAD_REQUEST, "Client using illegal fields".into()));
+            }
+        }
+    }
+
+    // if there is no id
+    if id.is_none() {
+        return Err((StatusCode::BAD_REQUEST, format!("Valid ID is required to drink in the USA")));
+    }
+    // if there is no image or name
+    else if img.is_none() && name.is_none() {
+        return Err((StatusCode::BAD_REQUEST, "No name or image attached to request".into()));
+    }
+    // else if there is only a name
+    else if img.is_none()
+        && let Some(name) = name
+        && let Some(id) = id
+    {
+        let name_update_result = sqlx::query_as!(
+            Category,
+            r#"
+                UPDATE categories
+                SET name = $2
+                WHERE category_id = $1
+            "#,
+            &id,
+            &name,
+        )
+        .execute(&app_state.pool)
+        .await;
+
+        if let Err(e) = name_update_result {
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
+        }
+
+        match sqlx::query_as!(Category, "SELECT * FROM categories ORDER BY idx",)
+            .fetch_all(&app_state.pool)
+            .await
+        {
+            Ok(mut data) => {
+                let url_prefix = "https://cdn.dansansouci.com/";
+                for category in data.iter_mut() {
+                    category.img_md = format!("{}{}", url_prefix, category.img_md);
+
+                    if let Some(img_lg_unwrapped) = &category.img_lg {
+                        category.img_lg = Some(format!("{}{}", url_prefix, img_lg_unwrapped));
+                    }
+
+                    if let Some(img_xl_unwrapped) = &category.img_xl {
+                        category.img_xl = Some(format!("{}{}", url_prefix, img_xl_unwrapped));
+                    }
+
+                    if let Some(img_vt_unwrapped) = &category.img_vt {
+                        category.img_vt = Some(format!("{}{}", url_prefix, img_vt_unwrapped));
+                    }
+                }
+
+                return Ok((StatusCode::OK, Json(data)));
+            }
+            Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        }
+    }
+
+    if let Some(img) = img
+        && let Some(id) = id
+    {
+        let (w, h) = (img.width(), img.height());
+
+        // will we transcode each size?
+        let md_is_needed = true;
+        let lg_is_needed = w > 700;
+        let xl_is_needed = w > 1600;
+        let vt_is_needed = true;
+
+        // will we resize each size?
+        let md_resize_is_needed = w > 700;
+        let lg_resize_is_needed = lg_is_needed && w > 1600;
+        let xl_resize_is_needed = xl_is_needed && w > 2500;
+        let vt_resize_is_needed = h > 2400;
+
+        // S3 Bucket Target Path
+        let s3_prefix = "DUMMY_categories";
+        let md_cdn_destination_path = format!("{s3_prefix}/md_{id}.webp");
+        let lg_cdn_destination_path = format!("{s3_prefix}/lg_{id}.webp");
+        let xl_cdn_destination_path = format!("{s3_prefix}/xl_{id}.webp");
+        let vt_cdn_destination_path = format!("{s3_prefix}/vt_{id}.webp");
+
+        {
+            // Set category data
+            let mut lock = category.lock().await;
+            lock.img_md = md_cdn_destination_path.clone();
+            lock.img_vt = Some(vt_cdn_destination_path.clone());
+            if lg_is_needed {
+                lock.img_lg = Some(lg_cdn_destination_path.clone());
+            }
+            if xl_is_needed {
+                lock.img_xl = Some(xl_cdn_destination_path.clone());
+            }
+        }
+
+        println!("starting resize");
+        let (md_img_res, lg_img_res, xl_img_res, vt_img_res) = tokio::join!(
+            resize_image(&img, category.clone(), Md, md_is_needed, md_resize_is_needed, w, h),
+            resize_image(&img, category.clone(), Lg, lg_is_needed, lg_resize_is_needed, w, h),
+            resize_image(&img, category.clone(), Xl, xl_is_needed, xl_resize_is_needed, w, h),
+            resize_image(&img, category.clone(), Vt, vt_is_needed, vt_resize_is_needed, w, h),
+        );
+
+        let (md_img, lg_img, xl_img, vt_img);
+        match md_img_res {
+            Ok(img) => {
+                md_img = img;
+            }
+            Err(e) => {
+                return Err((StatusCode::BAD_REQUEST, format!("Image resize error: {e}")));
+            }
+        }
+        match lg_img_res {
+            Ok(img) => {
+                lg_img = img;
+            }
+            Err(e) => {
+                return Err((StatusCode::BAD_REQUEST, format!("Image resize error: {e}")));
+            }
+        }
+        match xl_img_res {
+            Ok(img) => {
+                xl_img = img;
+            }
+            Err(e) => {
+                return Err((StatusCode::BAD_REQUEST, format!("Image resize error: {e}")));
+            }
+        }
+        match vt_img_res {
+            Ok(img) => {
+                vt_img = img;
+            }
+            Err(e) => {
+                return Err((StatusCode::BAD_REQUEST, format!("Image resize error: {e}")));
+            }
+        }
+
+        let encode_result = tokio::task::spawn_blocking(move || {
+            let (mut md_bytes, mut lg_bytes, mut xl_bytes, mut vt_bytes) = (Ok(None), Ok(None), Ok(None), Ok(None));
+            rayon::scope(|s| {
+                s.spawn(|_| md_bytes = encode_image_to_bytes(md_is_needed, &md_img));
+                s.spawn(|_| lg_bytes = encode_image_to_bytes(lg_is_needed, &lg_img));
+                s.spawn(|_| xl_bytes = encode_image_to_bytes(xl_is_needed, &xl_img));
+                s.spawn(|_| vt_bytes = encode_image_to_bytes(vt_is_needed, &vt_img));
+            });
+            (md_bytes, lg_bytes, xl_bytes, vt_bytes)
+        })
+        .await;
+
+        // handle any encode errors here and break the whole thing
+        let (md_bytes, lg_bytes, xl_bytes, vt_bytes);
+        match encode_result {
+            Ok(val) => {
+                match val.0 {
+                    Ok(md) => md_bytes = md,
+                    Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image encode error: {e}"))),
+                }
+                match val.1 {
+                    Ok(lg) => lg_bytes = lg,
+                    Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image encode error: {e}"))),
+                }
+                match val.2 {
+                    Ok(xl) => xl_bytes = xl,
+                    Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image encode error: {e}"))),
+                }
+                match val.3 {
+                    Ok(vt) => vt_bytes = vt,
+                    Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image encode error: {e}"))),
+                }
+            }
+            Err(e) => {
+                return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Image encode error: {e}")));
+            }
+        }
+
+        /////////////////////////////////////////////////////////////
+        ///////////////// Upload to S3 //////////////////////////////
+        /////////////////////////////////////////////////////////////
+
+        let (_a, _b, _c, _d) = tokio::join!(
+            upload_object(
+                &app_state.s3_client,
+                &app_state.s3_bucket_name,
+                &md_cdn_destination_path,
+                md_bytes,
+                md_is_needed,
+            ),
+            upload_object(
+                &app_state.s3_client,
+                &app_state.s3_bucket_name,
+                &lg_cdn_destination_path,
+                lg_bytes,
+                lg_is_needed,
+            ),
+            upload_object(
+                &app_state.s3_client,
+                &app_state.s3_bucket_name,
+                &xl_cdn_destination_path,
+                xl_bytes,
+                xl_is_needed,
+            ),
+            upload_object(
+                &app_state.s3_client,
+                &app_state.s3_bucket_name,
+                &vt_cdn_destination_path,
+                vt_bytes,
+                vt_is_needed,
+            ),
+        );
+    }
+
+    if let Some(name) = name
+        && let Some(id) = id
+    {
+        let category = category.lock().await;
+
+        let query_result = sqlx::query_as!(
+            Category,
+            r#"
+            INSERT INTO categories (
+                category_id,
+                idx,
+                name,
+                img_md,
+                img_md_width,
+                img_md_height,
+                img_lg,
+                img_lg_width,
+                img_lg_height,
+                img_xl,
+                img_xl_width,
+                img_xl_height,
+                img_vt,
+                img_vt_width,
+                img_vt_height
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            ON CONFLICT (category_id)
+            DO UPDATE set
+                category_id = EXCLUDED.category_id,
+                idx = EXCLUDED.idx,
+                name = EXCLUDED.name,
+                img_md = EXCLUDED.img_md,
+                img_md_width = EXCLUDED.img_md_width,
+                img_md_height = EXCLUDED.img_md_height,
+                img_lg = EXCLUDED.img_lg,
+                img_lg_width = EXCLUDED.img_lg_width,
+                img_lg_height = EXCLUDED.img_lg_height,
+                img_xl = EXCLUDED.img_xl,
+                img_xl_width = EXCLUDED.img_xl_width,
+                img_xl_height = EXCLUDED.img_xl_height,
+                img_vt = EXCLUDED.img_vt,
+                img_vt_width = EXCLUDED.img_vt_width,
+                img_vt_height = EXCLUDED.img_vt_height
+            RETURNING
+                category_id,
+                idx,
+                name,
+                img_md,
+                img_md_width,
+                img_md_height,
+                img_lg,
+                img_lg_width,
+                img_lg_height,
+                img_xl,
+                img_xl_width,
+                img_xl_height,
+                img_vt,
+                img_vt_width,
+                img_vt_height
+            "#,
+            category.category_id,
+            category.idx,
+            category.name,
+            category.img_md,
+            category.img_md_width,
+            category.img_md_height,
+            category.img_lg,
+            category.img_lg_width,
+            category.img_lg_height,
+            category.img_xl,
+            category.img_xl_width,
+            category.img_xl_height,
+            category.img_vt,
+            category.img_vt_width,
+            category.img_vt_height
+        )
+        .fetch_one(&app_state.pool)
+        .await;
+
+        if let Err(e) = query_result {
+            Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database Error: {e}")))
+        } else {
+            match sqlx::query_as!(Category, "SELECT * FROM categories ORDER BY idx",)
+                .fetch_all(&app_state.pool)
+                .await
+            {
+                Ok(mut data) => {
+                    let url_prefix = "https://cdn.dansansouci.com/";
+                    for category in data.iter_mut() {
+                        category.img_md = format!("{}{}", url_prefix, category.img_md);
+
+                        if let Some(img_lg_unwrapped) = &category.img_lg {
+                            category.img_lg = Some(format!("{}{}", url_prefix, img_lg_unwrapped));
+                        }
+
+                        if let Some(img_xl_unwrapped) = &category.img_xl {
+                            category.img_xl = Some(format!("{}{}", url_prefix, img_xl_unwrapped));
+                        }
+
+                        if let Some(img_vt_unwrapped) = &category.img_vt {
+                            category.img_vt = Some(format!("{}{}", url_prefix, img_vt_unwrapped));
+                        }
+                    }
+
+                    Ok((StatusCode::OK, Json(data)))
+                }
+                Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+            }
+        }
+    }
+    return Err((StatusCode::INTERNAL_SERVER_ERROR, "logic error".to_string()));
 }
 
 #[axum::debug_handler]
 pub async fn get_categories(State(app_state): State<AppState>) -> impl IntoResponse {
     println!("getting some categories here");
-    match sqlx::query_as!(Category, "SELECT * FROM categories",)
+    match sqlx::query_as!(Category, "SELECT * FROM categories ORDER BY idx",)
         .fetch_all(&app_state.pool)
         .await
     {
@@ -439,7 +830,7 @@ pub async fn post_category(
         if let Err(e) = query_result {
             Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database Error: {e}")))
         } else {
-            match sqlx::query_as!(Category, "SELECT * FROM categories",)
+            match sqlx::query_as!(Category, "SELECT * FROM categories ORDER BY idx",)
                 .fetch_all(&app_state.pool)
                 .await
             {

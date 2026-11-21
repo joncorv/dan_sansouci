@@ -1,11 +1,11 @@
 info:
-  name: Paintings Single
+  name: Paintings by Category
   type: http
-  seq: 6
+  seq: 5
 
 http:
   method: GET
-  url: "{{base_url}}/paintings/0"
+  url: "{{base_url}}/paintings/3a198ea8-317c-47f5-81a5-d50abb683b40"
   auth: inherit
 
 settings:

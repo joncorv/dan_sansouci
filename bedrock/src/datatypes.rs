@@ -64,7 +64,7 @@ pub struct Category {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Painting {
     pub id: Uuid,
-    pub category_id: i32,
+    pub category_id: Uuid,
     pub idx: i32,
     pub name: String,
     pub medium: String,
