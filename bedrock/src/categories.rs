@@ -130,11 +130,15 @@ pub async fn patch_category(
 
             "id" => {
                 match field.text().await {
-                    Ok(idx_text) => {
-                        match idx_text.parse::<Uuid>() {
-                            Ok(idx) => {
+                    Ok(id_text) => {
+                        match id_text.parse::<Uuid>() {
+                            Ok(id_parsed) => {
                                 // nice we have a fuckin cool and sweet Uuid
-                                id = Some(idx)
+                                id = Some(id_parsed);
+                                {
+                                    let mut lock = image_metadata.lock().await;
+                                    lock.id = id_parsed;
+                                }
                             }
                             Err(e) => {
                                 return Err((StatusCode::BAD_REQUEST, format!("illegal id: {e}")));

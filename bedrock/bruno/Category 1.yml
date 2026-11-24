@@ -9,17 +9,17 @@ http:
   body:
     type: multipart-form
     data:
+      - name: id
+        type: text
+        value: 5c229bb7-6e34-4d51-8de3-8b8d073e30b1
       - name: name
         type: text
-        value: Patched Name
+        value: New patched Name
       - name: img
         type: file
         value:
-          - \\wsl.localhost\FedoraLinux-43\home\joncorv\Documents\dan_sansouci_cdn\day-of-the-dead\day-of-the-dead-0012.jpg
+          - \\wsl.localhost\FedoraLinux-43\home\joncorv\Documents\dan_sansouci_cdn\figurative-portraits\figurative-portraits-0002.jpg
         contentType: image/jpeg
-      - name: id
-        type: text
-        value: 8d68c163-bc79-4fbc-a2a0-bc7427f503e7
       - name: balls
         type: text
         value: shit

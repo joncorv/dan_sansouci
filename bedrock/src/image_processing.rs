@@ -56,7 +56,7 @@ pub async fn process_images(
         let mut lock = image_metadata.lock().await;
 
         // S3 Bucket Target Path
-        let s3_prefix = format!("dummy_{:?}", lock.image_type);
+        let s3_prefix = format!("{:?}", lock.image_type);
         let md_cdn_destination_path = format!("{s3_prefix}/md_{}.webp", lock.id);
         let lg_cdn_destination_path = format!("{s3_prefix}/lg_{}.webp", lock.id);
         let xl_cdn_destination_path = format!("{s3_prefix}/xl_{}.webp", lock.id);
