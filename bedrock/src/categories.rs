@@ -355,7 +355,7 @@ pub async fn post_category(
     ///////////////// PROCESS IMAGES ////////////////////////////
     /////////////////////////////////////////////////////////////
     if let Some(img) = img {
-        crate::image_processing::process_images(&app_state, &img, Arc::clone(&image_metadata)).await?
+        process_images(&app_state, &img, Arc::clone(&image_metadata)).await?;
     }
 
     {
@@ -399,22 +399,6 @@ pub async fn post_category(
                 img_vt = EXCLUDED.img_vt,
                 img_vt_width = EXCLUDED.img_vt_width,
                 img_vt_height = EXCLUDED.img_vt_height
-            RETURNING
-                category_id,
-                idx,
-                name,
-                img_md,
-                img_md_width,
-                img_md_height,
-                img_lg,
-                img_lg_width,
-                img_lg_height,
-                img_xl,
-                img_xl_width,
-                img_xl_height,
-                img_vt,
-                img_vt_width,
-                img_vt_height
             "#,
             category.id,
             category.idx,
@@ -432,7 +416,7 @@ pub async fn post_category(
             category.img_vt_width,
             category.img_vt_height
         )
-        .fetch_one(&app_state.pool)
+        .execute(&app_state.pool)
         .await;
 
         if let Err(e) = query_result {
