@@ -29,6 +29,7 @@ pub enum ImageType {
     Painting,
 }
 
+#[derive(Debug, Default)]
 pub struct ImageMetadata {
     pub image_type: ImageType,
 

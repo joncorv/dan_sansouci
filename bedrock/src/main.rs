@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_imports)]
+#![allow(dead_code, unused_imports, unused_variables)]
 use aws_sdk_s3 as s3;
 use axum::Router;
 use axum::extract::DefaultBodyLimit;

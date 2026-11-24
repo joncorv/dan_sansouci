@@ -1,0 +1,21 @@
+info:
+  name: Category
+  type: http
+  seq: 2
+
+http:
+  method: DELETE
+  url: "{{base_url}}/category/a9f9ebee-a610-48c4-b71b-daf05e792f05"
+  params:
+    - name: category_id
+      value: a9f9ebee-a610-48c4-b71b-daf05e792f05
+      type: query
+      disabled: true
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

@@ -1,4 +1,3 @@
-#![allow(unused_imports)]
 use aws_sdk_s3 as s3;
 use aws_sdk_s3::primitives::ByteStream;
 use axum::Json;
@@ -41,12 +40,12 @@ pub fn build_routes_slideshow() -> Router<AppState> {
 }
 
 #[axum::debug_handler]
-pub async fn patch_slideshow(State(_app_state): State<AppState>) -> impl IntoResponse {
+pub async fn patch_slideshow(State(app_state): State<AppState>) -> impl IntoResponse {
     (StatusCode::OK, String::from("WIP -- user updates a single slideshow item"))
 }
 
 #[axum::debug_handler]
-pub async fn post_slideshow(State(_app_state): State<AppState>) -> impl IntoResponse {
+pub async fn post_slideshow(State(app_state): State<AppState>) -> impl IntoResponse {
     (StatusCode::OK, String::from("WIP --- user creates a new slideshow item"))
 }
 
@@ -57,7 +56,7 @@ pub async fn sort_slideshow(State(app_state): State<AppState>, Json(uuids): Json
     }
     let indexes: Vec<i32> = (0..uuids.len()).map(|num| num as i32).collect();
     let sort_result = sqlx::query_as!(
-        Slideshow,
+        SlideshowSchema,
         r#"
             UPDATE slideshow as old_slides
             SET
@@ -81,19 +80,16 @@ pub async fn sort_slideshow(State(app_state): State<AppState>, Json(uuids): Json
     {
         Ok(mut data) => {
             let url_prefix = "https://cdn.dansansouci.com/";
-            for category in data.iter_mut() {
-                category.img_md = format!("{}{}", url_prefix, category.img_md);
+            for image_metadata in data.iter_mut() {
+                image_metadata.img_md = format!("{}{}", url_prefix, image_metadata.img_md);
+                image_metadata.img_vt = format!("{}{}", url_prefix, &image_metadata.img_vt);
 
-                if let Some(img_lg_unwrapped) = &category.img_lg {
-                    category.img_lg = Some(format!("{}{}", url_prefix, img_lg_unwrapped));
+                if let Some(img_lg_unwrapped) = &image_metadata.img_lg {
+                    image_metadata.img_lg = Some(format!("{}{}", url_prefix, img_lg_unwrapped));
                 }
 
-                if let Some(img_xl_unwrapped) = &category.img_xl {
-                    category.img_xl = Some(format!("{}{}", url_prefix, img_xl_unwrapped));
-                }
-
-                if let Some(img_vt_unwrapped) = &category.img_vt {
-                    category.img_vt = Some(format!("{}{}", url_prefix, img_vt_unwrapped));
+                if let Some(img_xl_unwrapped) = &image_metadata.img_xl {
+                    image_metadata.img_xl = Some(format!("{}{}", url_prefix, img_xl_unwrapped));
                 }
             }
 
@@ -111,18 +107,17 @@ pub async fn get_slideshow(State(app_state): State<AppState>) -> impl IntoRespon
     {
         Ok(mut data) => {
             let url_prefix = "https://cdn.dansansouci.com/";
-            for slideshow in data.iter_mut() {
-                slideshow.img_md = format!("{}{}", url_prefix, slideshow.img_md);
+            for image_metadata in data.iter_mut() {
+                image_metadata.img_md = format!("{}{}", url_prefix, image_metadata.img_md);
+                image_metadata.img_vt = format!("{}{}", url_prefix, image_metadata.img_vt);
 
-                if let Some(img_lg_unwrapped) = &slideshow.img_lg {
-                    slideshow.img_lg = Some(format!("{}{}", url_prefix, img_lg_unwrapped));
+                if let Some(img_lg_unwrapped) = &image_metadata.img_lg {
+                    image_metadata.img_lg = Some(format!("{}{}", url_prefix, img_lg_unwrapped));
                 }
 
-                if let Some(img_xl_unwrapped) = &slideshow.img_xl {
-                    slideshow.img_xl = Some(format!("{}{}", url_prefix, img_xl_unwrapped));
+                if let Some(img_xl_unwrapped) = &image_metadata.img_xl {
+                    image_metadata.img_xl = Some(format!("{}{}", url_prefix, img_xl_unwrapped));
                 }
-
-                slideshow.img_vt = format!("{}{}", url_prefix, slideshow.img_vt);
             }
 
             Ok((StatusCode::OK, Json(data)))

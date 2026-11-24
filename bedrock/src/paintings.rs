@@ -1,4 +1,3 @@
-#![allow(unused_imports)]
 use aws_sdk_s3 as s3;
 use aws_sdk_s3::primitives::ByteStream;
 use axum::Json;
@@ -35,7 +34,25 @@ use crate::datatypes::Size::{Lg, Md, Vt, Xl};
 use crate::datatypes::{CategorySchema, PaintingSchema, Size, SlideshowSchema};
 
 pub fn build_routes_paintings() -> Router<AppState> {
-    Router::new().route("/paintings/{category_id}", get(get_paintings_by_category_id))
+    Router::new()
+        .route("/paintings/{category_id}", get(get_paintings_by_category_id))
+        .route("/paintings", patch(patch_painting).post(post_painting))
+        .route("/sort-paintings", patch(sort_paintings))
+}
+
+#[axum::debug_handler]
+pub async fn sort_paintings(State(app_state): State<AppState>) -> impl IntoResponse {
+    (StatusCode::OK, String::from("WIP -- User sorts paintings"))
+}
+
+#[axum::debug_handler]
+pub async fn patch_painting(State(app_state): State<AppState>) -> impl IntoResponse {
+    (StatusCode::OK, String::from("WIP -- user updates a single painting item"))
+}
+
+#[axum::debug_handler]
+pub async fn post_painting(State(app_state): State<AppState>) -> impl IntoResponse {
+    (StatusCode::OK, String::from("WIP --- user creates a new painting item"))
 }
 
 #[axum::debug_handler]
@@ -44,9 +61,9 @@ pub async fn get_paintings_by_category_id(State(app_state): State<AppState>, Pat
     match sqlx::query_as!(
         PaintingSchema,
         r#"
-        SELECT * FROM paintings 
-        WHERE category_id = $1 
-        ORDER BY idx
+            SELECT * FROM paintings 
+            WHERE category_id = $1 
+            ORDER BY idx
         "#,
         category_id
     )

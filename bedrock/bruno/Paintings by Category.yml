@@ -1,7 +1,7 @@
 info:
   name: Paintings by Category
   type: http
-  seq: 5
+  seq: 9
 
 http:
   method: GET

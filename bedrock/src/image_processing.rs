@@ -1,4 +1,3 @@
-#![allow(unused_imports)]
 use aws_sdk_s3 as s3;
 use aws_sdk_s3::primitives::ByteStream;
 use axum::Json;
@@ -38,50 +37,11 @@ use crate::datatypes::Size;
 use crate::datatypes::Size::{Lg, Md, Vt, Xl};
 use crate::datatypes::{CategorySchema, PaintingSchema, SlideshowSchema};
 
-pub fn sizes_needed(image_type: ImageType, w: u32, h: u32) -> (bool, bool, bool, bool) {
-    match image_type {
-        Category => {
-            let md_is_needed = true;
-            let lg_is_needed = w > 700;
-            let xl_is_needed = w > 1600;
-            let vt_is_needed = true;
-
-            (md_is_needed, lg_is_needed, xl_is_needed, vt_is_needed)
-        }
-        Painting => {
-            //
-            (false, false, false, false)
-        }
-        Slideshow => {
-            //
-            (false, false, false, false)
-        }
-    }
-}
-
-pub fn re_sizes_needed(image_type: ImageType, w: u32, h: u32) -> (bool, bool, bool, bool) {
-    match image_type {
-        Category => {
-            // the logic here is wrong
-            let md_resize_is_needed = w > 700;
-            let lg_resize_is_needed = w > 700 && w > 1600;
-            let xl_resize_is_needed = w > 1600 && w > 2500;
-            let vt_resize_is_needed = h > 2400;
-
-            (md_resize_is_needed, lg_resize_is_needed, xl_resize_is_needed, vt_resize_is_needed)
-        }
-        Painting => {
-            //
-            (false, false, false, false)
-        }
-        Slideshow => {
-            //
-            (false, false, false, false)
-        }
-    }
-}
-
-pub async fn process_images(img: &DynamicImage, image_metadata: Arc<Mutex<ImageMetadata>>) {
+pub async fn process_images(
+    app_state: &AppState,
+    img: &DynamicImage,
+    image_metadata: Arc<Mutex<ImageMetadata>>,
+) -> Result<(), (StatusCode, String)> {
     let (w, h) = (img.width(), img.height());
 
     // will we transcode each size?
@@ -114,10 +74,10 @@ pub async fn process_images(img: &DynamicImage, image_metadata: Arc<Mutex<ImageM
 
     println!("starting resize");
     let (md_img_res, lg_img_res, xl_img_res, vt_img_res) = tokio::join!(
-        resize_image(&img, Arc::clone(image_metadata), Md, md_is_needed, md_resize_is_needed, w, h),
-        resize_image(&img, Arc::clone(image_metadata), Lg, lg_is_needed, lg_resize_is_needed, w, h),
-        resize_image(&img, Arc::clone(image_metadata), Xl, xl_is_needed, xl_resize_is_needed, w, h),
-        resize_image(&img, Arc::clone(image_metadata), Vt, vt_is_needed, vt_resize_is_needed, w, h),
+        resize_image(img, Arc::clone(&image_metadata), Md, md_is_needed, md_resize_is_needed, w, h),
+        resize_image(img, Arc::clone(&image_metadata), Lg, lg_is_needed, lg_resize_is_needed, w, h),
+        resize_image(img, Arc::clone(&image_metadata), Xl, xl_is_needed, xl_resize_is_needed, w, h),
+        resize_image(img, Arc::clone(&image_metadata), Vt, vt_is_needed, vt_resize_is_needed, w, h),
     );
 
     let (md_img, lg_img, xl_img, vt_img);
@@ -196,41 +156,30 @@ pub async fn process_images(img: &DynamicImage, image_metadata: Arc<Mutex<ImageM
     ///////////////// Upload to S3 //////////////////////////////
     /////////////////////////////////////////////////////////////
 
+    let (md_path, lg_path, xl_path, vt_path): (String, String, String, String) = {
+        let lock = image_metadata.lock().await;
+
+        (
+            lock.img_md.clone(),
+            lock.img_lg.clone().unwrap_or_default(),
+            lock.img_xl.clone().unwrap_or_default(),
+            lock.img_vt.clone(),
+        )
+    };
+
     let (_a, _b, _c, _d) = tokio::join!(
-        upload_object(
-            &app_state.s3_client,
-            &app_state.s3_bucket_name,
-            &md_cdn_destination_path,
-            md_bytes,
-            md_is_needed,
-        ),
-        upload_object(
-            &app_state.s3_client,
-            &app_state.s3_bucket_name,
-            &lg_cdn_destination_path,
-            lg_bytes,
-            lg_is_needed,
-        ),
-        upload_object(
-            &app_state.s3_client,
-            &app_state.s3_bucket_name,
-            &xl_cdn_destination_path,
-            xl_bytes,
-            xl_is_needed,
-        ),
-        upload_object(
-            &app_state.s3_client,
-            &app_state.s3_bucket_name,
-            &vt_cdn_destination_path,
-            vt_bytes,
-            vt_is_needed,
-        ),
+        upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &md_path, md_bytes, md_is_needed,),
+        upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &lg_path, lg_bytes, lg_is_needed,),
+        upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &xl_path, xl_bytes, xl_is_needed,),
+        upload_object(&app_state.s3_client, &app_state.s3_bucket_name, &vt_path, vt_bytes, vt_is_needed,),
     );
+
+    Ok(())
 }
 
 pub async fn resize_image(
     img: &DynamicImage,
-    category: Arc<Mutex<CategorySchema>>,
+    image_metadata: Arc<Mutex<ImageMetadata>>,
     size: Size,
     is_needed: bool,
     resize_is_needed: bool,
@@ -251,24 +200,24 @@ pub async fn resize_image(
 
             match size {
                 Md => {
-                    let mut lock = category.lock().await;
+                    let mut lock = image_metadata.lock().await;
                     lock.img_md_width = new_w;
                     lock.img_md_height = new_h;
                 }
                 Lg => {
-                    let mut lock = category.lock().await;
+                    let mut lock = image_metadata.lock().await;
                     lock.img_lg_width = Some(new_w);
                     lock.img_lg_height = Some(new_h);
                 }
                 Xl => {
-                    let mut lock = category.lock().await;
+                    let mut lock = image_metadata.lock().await;
                     lock.img_xl_width = Some(new_w);
                     lock.img_xl_height = Some(new_h);
                 }
                 Vt => {
-                    let mut lock = category.lock().await;
-                    lock.img_vt_width = Some(new_h / 2);
-                    lock.img_vt_height = Some(new_h);
+                    let mut lock = image_metadata.lock().await;
+                    lock.img_vt_width = new_h / 2;
+                    lock.img_vt_height = new_h;
                 }
             }
 
@@ -287,27 +236,27 @@ pub async fn resize_image(
             // this particular size is needed, but resize is NOT needed
             match size {
                 Md => {
-                    let mut lock = category.lock().await;
+                    let mut lock = image_metadata.lock().await;
                     lock.img_md_width = w as i32;
                     lock.img_md_height = h as i32;
                     img.clone()
                 }
                 Lg => {
-                    let mut lock = category.lock().await;
+                    let mut lock = image_metadata.lock().await;
                     lock.img_lg_width = Some(w as i32);
                     lock.img_lg_height = Some(h as i32);
                     img.clone()
                 }
                 Xl => {
-                    let mut lock = category.lock().await;
+                    let mut lock = image_metadata.lock().await;
                     lock.img_xl_width = Some(w as i32);
                     lock.img_xl_height = Some(h as i32);
                     img.clone()
                 }
                 _ => {
-                    let mut lock = category.lock().await;
-                    lock.img_vt_width = Some((h / 2) as i32);
-                    lock.img_vt_height = Some(h as i32);
+                    let mut lock = image_metadata.lock().await;
+                    lock.img_vt_width = (h / 2) as i32;
+                    lock.img_vt_height = h as i32;
                     let x_crop = (w / 2) - (h / 4);
                     img.crop_imm(x_crop, 0, h / 2, h)
                 }
@@ -357,4 +306,47 @@ async fn upload_object(
     }
 
     Ok(())
+}
+
+pub fn sizes_needed(image_type: ImageType, w: u32, h: u32) -> (bool, bool, bool, bool) {
+    match image_type {
+        Category => {
+            let md_is_needed = true;
+            let lg_is_needed = w > 700;
+            let xl_is_needed = w > 1600;
+            let vt_is_needed = true;
+
+            (md_is_needed, lg_is_needed, xl_is_needed, vt_is_needed)
+        }
+        Painting => {
+            //
+            (false, false, false, false)
+        }
+        Slideshow => {
+            //
+            (false, false, false, false)
+        }
+    }
+}
+
+pub fn re_sizes_needed(image_type: ImageType, w: u32, h: u32) -> (bool, bool, bool, bool) {
+    match image_type {
+        Category => {
+            // the logic here is wrong
+            let md_resize_is_needed = w > 700;
+            let lg_resize_is_needed = w > 1600;
+            let xl_resize_is_needed = w > 2500;
+            let vt_resize_is_needed = h > 2400;
+
+            (md_resize_is_needed, lg_resize_is_needed, xl_resize_is_needed, vt_resize_is_needed)
+        }
+        Painting => {
+            //
+            (false, false, false, false)
+        }
+        Slideshow => {
+            //
+            (false, false, false, false)
+        }
+    }
 }

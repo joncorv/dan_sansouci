@@ -11,12 +11,15 @@ http:
     data:
       - name: name
         type: text
-        value: Another Dead One
+        value: Patched Name
       - name: img
         type: file
         value:
           - \\wsl.localhost\FedoraLinux-43\home\joncorv\Documents\dan_sansouci_cdn\day-of-the-dead\day-of-the-dead-0012.jpg
         contentType: image/jpeg
+      - name: id
+        type: text
+        value: 8d68c163-bc79-4fbc-a2a0-bc7427f503e7
       - name: balls
         type: text
         value: shit
