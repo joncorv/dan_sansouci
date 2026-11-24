@@ -32,7 +32,7 @@ use std::path::Path as StdPath;
 
 use crate::AppState;
 use crate::datatypes::Size::{Lg, Md, Vt, Xl};
-use crate::datatypes::{Category, Painting, Size, Slideshow};
+use crate::datatypes::{CategorySchema, PaintingSchema, Size, SlideshowSchema};
 
 pub fn build_routes_slideshow() -> Router<AppState> {
     Router::new()
@@ -75,7 +75,7 @@ pub async fn sort_slideshow(State(app_state): State<AppState>, Json(uuids): Json
         return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
     }
 
-    match sqlx::query_as!(Category, "SELECT * FROM categories ORDER BY idx",)
+    match sqlx::query_as!(CategorySchema, "SELECT * FROM categories ORDER BY idx",)
         .fetch_all(&app_state.pool)
         .await
     {
@@ -105,7 +105,7 @@ pub async fn sort_slideshow(State(app_state): State<AppState>, Json(uuids): Json
 
 #[axum::debug_handler]
 pub async fn get_slideshow(State(app_state): State<AppState>) -> impl IntoResponse {
-    match sqlx::query_as!(Slideshow, "SELECT * FROM slideshow ORDER BY idx",)
+    match sqlx::query_as!(SlideshowSchema, "SELECT * FROM slideshow ORDER BY idx",)
         .fetch_all(&app_state.pool)
         .await
     {

@@ -32,7 +32,7 @@ use std::path::Path as StdPath;
 
 use crate::AppState;
 use crate::datatypes::Size::{Lg, Md, Vt, Xl};
-use crate::datatypes::{Category, Painting, Size, Slideshow};
+use crate::datatypes::{CategorySchema, PaintingSchema, Size, SlideshowSchema};
 
 pub fn build_routes_paintings() -> Router<AppState> {
     Router::new().route("/paintings/{category_id}", get(get_paintings_by_category_id))
@@ -42,7 +42,7 @@ pub fn build_routes_paintings() -> Router<AppState> {
 pub async fn get_paintings_by_category_id(State(app_state): State<AppState>, Path(category_id): Path<Uuid>) -> impl IntoResponse {
     println!("getting some paintings here");
     match sqlx::query_as!(
-        Painting,
+        PaintingSchema,
         r#"
         SELECT * FROM paintings 
         WHERE category_id = $1 

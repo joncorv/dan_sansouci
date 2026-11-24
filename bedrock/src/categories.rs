@@ -31,8 +31,13 @@ use webp::WebPMemory;
 use std::path::Path as StdPath;
 
 use crate::AppState;
+use crate::datatypes::ImageType;
+use crate::datatypes::ImageType::{Category, Painting, Slideshow};
 use crate::datatypes::Size::{Lg, Md, Vt, Xl};
-use crate::datatypes::{Category, Painting, Size, Slideshow};
+use crate::datatypes::{CategorySchema, PaintingSchema, Size, SlideshowSchema};
+
+use crate::image_processing::re_sizes_needed;
+use crate::image_processing::sizes_needed;
 
 pub fn build_routes_categories() -> Router<AppState> {
     Router::new()
@@ -66,7 +71,7 @@ pub async fn sort_categories(State(app_state): State<AppState>, Json(uuids): Jso
         return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
     }
 
-    match sqlx::query_as!(Category, "SELECT * FROM categories ORDER BY idx",)
+    match sqlx::query_as!(CategorySchema, "SELECT * FROM categories ORDER BY idx",)
         .fetch_all(&app_state.pool)
         .await
     {
@@ -98,8 +103,8 @@ pub async fn sort_categories(State(app_state): State<AppState>, Json(uuids): Jso
 pub async fn patch_category(
     State(app_state): State<AppState>,
     mut multipart: Multipart,
-) -> Result<(StatusCode, Json<Vec<Category>>), (StatusCode, String)> {
-    let category = Arc::new(Mutex::new(Category::default()));
+) -> Result<(StatusCode, Json<Vec<CategorySchema>>), (StatusCode, String)> {
+    let category = Arc::new(Mutex::new(CategorySchema::default()));
     let mut img: Option<DynamicImage> = None;
     let mut name: Option<String> = None;
     let mut id: Option<Uuid> = None;
@@ -197,7 +202,7 @@ pub async fn patch_category(
             return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
         }
 
-        match sqlx::query_as!(Category, "SELECT * FROM categories ORDER BY idx",)
+        match sqlx::query_as!(CategorySchema, "SELECT * FROM categories ORDER BY idx",)
             .fetch_all(&app_state.pool)
             .await
         {
@@ -231,16 +236,14 @@ pub async fn patch_category(
         let (w, h) = (img.width(), img.height());
 
         // will we transcode each size?
-        let md_is_needed = true;
-        let lg_is_needed = w > 700;
-        let xl_is_needed = w > 1600;
-        let vt_is_needed = true;
+        let (md_is_needed, lg_is_needed, xl_is_needed, vt_is_needed) = sizes_needed(Category, w, h);
 
         // will we resize each size?
-        let md_resize_is_needed = w > 700;
-        let lg_resize_is_needed = lg_is_needed && w > 1600;
-        let xl_resize_is_needed = xl_is_needed && w > 2500;
-        let vt_resize_is_needed = h > 2400;
+        let (md_resize_is_needed, lg_resize_is_needed, xl_resize_is_needed, vt_resize_is_needed) = sizes_needed(Category, w, h);
+        // let md_resize_is_needed = w > 700;
+        // let lg_resize_is_needed = lg_is_needed && w > 1600;
+        // let xl_resize_is_needed = xl_is_needed && w > 2500;
+        // let vt_resize_is_needed = h > 2400;
 
         // S3 Bucket Target Path
         let s3_prefix = "DUMMY_categories";
@@ -384,7 +387,7 @@ pub async fn patch_category(
         let category = category.lock().await;
 
         let query_result = sqlx::query_as!(
-            Category,
+            CategorySchema,
             r#"
             INSERT INTO categories (
                 category_id,
@@ -460,7 +463,7 @@ pub async fn patch_category(
         if let Err(e) = query_result {
             Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database Error: {e}")))
         } else {
-            match sqlx::query_as!(Category, "SELECT * FROM categories ORDER BY idx",)
+            match sqlx::query_as!(CategorySchema, "SELECT * FROM categories ORDER BY idx",)
                 .fetch_all(&app_state.pool)
                 .await
             {
@@ -494,7 +497,7 @@ pub async fn patch_category(
 #[axum::debug_handler]
 pub async fn get_categories(State(app_state): State<AppState>) -> impl IntoResponse {
     println!("getting some categories here");
-    match sqlx::query_as!(Category, "SELECT * FROM categories ORDER BY idx",)
+    match sqlx::query_as!(CategorySchema, "SELECT * FROM categories ORDER BY idx",)
         .fetch_all(&app_state.pool)
         .await
     {
@@ -526,8 +529,8 @@ pub async fn get_categories(State(app_state): State<AppState>) -> impl IntoRespo
 pub async fn post_category(
     State(app_state): State<AppState>,
     mut multipart: Multipart,
-) -> Result<(StatusCode, Json<Vec<Category>>), (StatusCode, String)> {
-    let category = Arc::new(Mutex::new(Category::default()));
+) -> Result<(StatusCode, Json<Vec<CategorySchema>>), (StatusCode, String)> {
+    let category = Arc::new(Mutex::new(CategorySchema::default()));
     let id = uuid::Uuid::new_v4();
 
     {
@@ -754,7 +757,7 @@ pub async fn post_category(
         let category = category.lock().await;
 
         let query_result = sqlx::query_as!(
-            Category,
+            CategorySchema,
             r#"
             INSERT INTO categories (
                 category_id,
@@ -830,7 +833,7 @@ pub async fn post_category(
         if let Err(e) = query_result {
             Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database Error: {e}")))
         } else {
-            match sqlx::query_as!(Category, "SELECT * FROM categories ORDER BY idx",)
+            match sqlx::query_as!(CategorySchema, "SELECT * FROM categories ORDER BY idx",)
                 .fetch_all(&app_state.pool)
                 .await
             {
@@ -862,7 +865,7 @@ pub async fn post_category(
 
 pub async fn resize_image(
     img: &DynamicImage,
-    category: Arc<Mutex<Category>>,
+    category: Arc<Mutex<CategorySchema>>,
     size: Size,
     is_needed: bool,
     resize_is_needed: bool,

@@ -14,6 +14,7 @@ mod cloud_storage;
 mod datatypes;
 mod paintings;
 // mod dummy_data;
+mod image_processing;
 mod logging;
 mod slideshow;
 
